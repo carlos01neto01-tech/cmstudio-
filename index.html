@@ -3,6 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- SEGURANÇA: política de conteúdo (GitHub Pages não permite cabeçalhos HTTP, então vai por <meta>).
+       Ao configurar o endpoint do formulário, ADICIONE o domínio dele em connect-src,
+       ex.: connect-src 'self' https://formspree.io; -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https:; connect-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <!-- REMOVER ESTA LINHA QUANDO O SITE FOR PARA PRODUÇÃO (impede indexação do protótipo) -->
+  <meta name="robots" content="noindex, nofollow">
+
   <title>CM Studio | Móveis planejados em todos os detalhes</title>
   <meta name="description" content="Explore cozinhas, salas, dormitórios e home offices planejados pela CM Studio. Do conceito à execução, um ambiente pensado para você.">
   <meta name="theme-color" content="#25595c">
@@ -11,6 +20,44 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Raleway:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- ABERTURA EM VÍDEO: configuração e detecção.
+       Roda antes da primeira pintura para a página não "piscar". Só ativa no desktop (1025px ou mais). -->
+  <script>
+window.CM_INTRO = {
+  enabled: true,         // false desliga a abertura
+  oncePerSession: false, // true = toca só 1x por sessão (RECOMENDADO em produção; deixe false para testar)
+  skipOnDeepLink: true   // não toca se o link já abrir numa seção (ex.: site.com/#contato)
+};
+(function () {
+  var d = document.documentElement, c = window.CM_INTRO;
+  try {
+    var ok = c.enabled &&
+      matchMedia('(min-width:1025px)').matches &&
+      !matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+    var net = navigator.connection;
+    if (net && (net.saveData || /(^|-)2g$/.test(net.effectiveType || ''))) ok = false;
+
+    if (ok && c.skipOnDeepLink && location.hash && location.hash !== '#home') ok = false;
+
+    if (ok && c.oncePerSession) {
+      try { if (sessionStorage.getItem('cm_intro_seen')) ok = false; } catch (e) {}
+    }
+
+    if (ok) {
+      d.classList.add('has-intro');
+
+      // Trava de segurança: se o script principal falhar, a abertura some sozinha em 12s.
+      setTimeout(function () {
+        d.classList.remove('has-intro');
+        var el = document.getElementById('intro');
+        if (el) el.remove();
+      }, 12000);
+    }
+  } catch (e) {}
+})();
+  </script>
 
   <!-- ESTILOS DO SITE -->
   <style>
@@ -49,6 +96,52 @@ section[id]{scroll-margin-top:100px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 .skip-link{position:fixed;top:-100px;left:20px;padding:15px;background:white;color:var(--teal);z-index:100}
 .skip-link:focus{top:12px}
+.link-button{border:0;background:none;padding:0;font:inherit;color:inherit;text-decoration:underline;text-underline-offset:3px}
+
+/* ABERTURA EM VÍDEO (SOMENTE DESKTOP) */
+.intro{display:none}
+@media(min-width:1025px){
+  html.has-intro{overflow:hidden}
+  html.has-intro .intro{
+    display:block;
+    position:fixed;
+    inset:0;
+    z-index:1000;
+    background:#f4f3f0;
+    box-shadow:0 40px 80px -20px rgba(10,35,36,.45);
+    will-change:transform;
+  }
+  .intro.is-leaving{
+    transform:translateY(-102%);
+    transition:transform 1.2s cubic-bezier(.77,0,.18,1);
+  }
+  .intro-video{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    pointer-events:none;
+  }
+  .intro-skip{
+    position:absolute;
+    right:36px;
+    bottom:30px;
+    min-height:40px;
+    padding:8px 20px;
+    border:1px solid #ffffff99;
+    border-radius:50px;
+    background:#163d3d66;
+    color:#fff;
+    font-size:.85rem;
+    font-weight:600;
+    letter-spacing:.04em;
+    -webkit-backdrop-filter:blur(8px);
+    backdrop-filter:blur(8px);
+    transition:background .25s;
+  }
+  .intro-skip:hover{background:#163d3dcc}
+}
 
 /* CABEÇALHO FIXO COM EFEITO DE VIDRO */
 .site-header{
@@ -167,6 +260,7 @@ summary::-webkit-details-marker{display:none}
 .form-status{font-size:.86rem;line-height:1.45}
 .form-status:empty{display:none}
 .field[hidden]{display:none}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 
 /* PERGUNTAS FREQUENTES */
 .faq-section{padding:70px 0 95px;background:var(--teal);color:#f5f4ef}
@@ -233,7 +327,7 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
 .model-ideal{text-align:center;font-size:.9rem;min-height:2.7em;padding:8px 2px 0}
 .model-cta{width:94%;display:flex;margin:8px auto 0;min-height:62px;font-size:1.2rem}
 
-/* MODAL DE VÍDEOS */
+/* MODAIS (VÍDEOS E POLÍTICA DE PRIVACIDADE) */
 .video-dialog{border:1px solid #25595c55;border-radius:24px;background:var(--paper);color:var(--teal);padding:28px;max-width:960px;width:92%;max-height:90svh;overflow:auto}
 .video-dialog::backdrop{background:#061f23bf;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .video-dialog h2{font-size:2.2rem;margin:0 40px 22px 0}
@@ -433,6 +527,14 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
 </head>
 
 <body>
+  <!-- ABERTURA EM VÍDEO (aparece só no desktop; no celular/tablet nunca é exibida) -->
+  <div id="intro" class="intro">
+    <video id="intro-video" class="intro-video" muted autoplay playsinline preload="auto" disablepictureinpicture disableremoteplayback aria-hidden="true" poster="assets/images/loading-poster.jpg">
+      <source src="assets/videos/loading.mp4" type="video/mp4">
+    </video>
+    <button type="button" class="intro-skip" id="intro-skip" aria-label="Pular animação de abertura">Pular</button>
+  </div>
+
   <!-- CABEÇALHO -->
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
 
@@ -623,7 +725,9 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
             <p>Deixe seu e-mail e telefone para receber ideias de projetos e novos modelos de móveis planejados da CM Studio.</p>
           </div>
 
-          <form id="lead-form" class="lead-form">
+          <!-- O formulário nasce oculto e só é liberado pelo JavaScript.
+               Sem JS, nenhum dado pessoal pode ser enviado pela URL (GET). -->
+          <form id="lead-form" class="lead-form" hidden>
             <div class="field reveal">
               <label for="nome">Nome:</label>
               <input id="nome" name="nome" autocomplete="name" placeholder="Seu nome" required minlength="2" maxlength="100">
@@ -644,9 +748,15 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
               <input id="interesse" name="interesse" readonly>
             </div>
 
+            <!-- Campo-armadilha contra robôs (humanos não veem nem preenchem) -->
+            <div class="hp" aria-hidden="true">
+              <label for="website">Não preencha este campo</label>
+              <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+            </div>
+
             <label class="consent">
               <input type="checkbox" name="consentimento" required>
-              <span>Concordo em receber contato da CM Studio por e-mail, telefone ou WhatsApp. Posso solicitar o cancelamento quando quiser.</span>
+              <span>Concordo em receber contato da CM Studio por e-mail, telefone ou WhatsApp, conforme a <button type="button" class="link-button" data-open-privacy>Política de Privacidade</button>. Posso solicitar o cancelamento quando quiser.</span>
             </label>
 
             <button class="button" type="submit">Quero Receber</button>
@@ -772,7 +882,7 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
 
     <div class="footer-bottom section-shell">
       <small>© <span data-year>2026</span> CM Studio. Todos os direitos reservados.</small>
-      <small>Desenvolvido por PROPACT MARKETING</small>
+      <small><button type="button" class="link-button" data-open-privacy>Política de Privacidade</button> · Desenvolvido por PROPACT MARKETING</small>
     </div>
   </footer>
 
@@ -783,6 +893,22 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
     <div id="video-content"></div>
   </dialog>
 
+  <!-- MODAL DA POLÍTICA DE PRIVACIDADE
+       MODELO PROVISÓRIO: preencha os campos [entre colchetes] e revise com assessoria jurídica antes de publicar. -->
+  <dialog id="privacy-dialog" class="video-dialog" aria-labelledby="privacy-title">
+    <button type="button" class="dialog-close" aria-label="Fechar política de privacidade">×</button>
+    <h2 id="privacy-title">Política de Privacidade</h2>
+    <div>
+      <p><strong>Controlador dos dados:</strong> [RAZÃO SOCIAL], CNPJ [00.000.000/0000-00], [ENDEREÇO COMPLETO].</p>
+      <p><strong>Contato do encarregado (DPO):</strong> [NOME] — [E-MAIL].</p>
+      <p><strong>Dados coletados:</strong> nome, e-mail, telefone e o ambiente de seu interesse, informados por você no formulário.</p>
+      <p><strong>Finalidade e base legal:</strong> enviar ideias de projetos e responder ao seu contato, com base no seu consentimento (LGPD, art. 7º, I).</p>
+      <p><strong>Compartilhamento:</strong> [LISTAR os serviços que recebem os dados, ex.: ferramenta de formulários, CRM, e-mail marketing].</p>
+      <p><strong>Retenção:</strong> [PRAZO] ou até você revogar o consentimento.</p>
+      <p><strong>Seus direitos:</strong> confirmar a existência de tratamento, acessar, corrigir, excluir e portar seus dados, e revogar o consentimento a qualquer momento, pelo e-mail acima (LGPD, art. 18).</p>
+    </div>
+  </dialog>
+
   <noscript>
     <style>#colecoes[hidden]{display:block!important}</style>
     <p class="section-shell">Ative o JavaScript para alternar modelos, usar as galerias e enviar o formulário. A Home e as perguntas frequentes continuam disponíveis.</p>
@@ -791,8 +917,9 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
   <!-- CONFIGURAÇÕES -->
   <script>
 window.CM_CONFIG = {
-  whatsapp: '',
-  leadEndpoint: '',
+  whatsapp: '',          // ex.: '5544999999999' (somente números, com 55 + DDD)
+  leadEndpoint: '',      // URL HTTPS do serviço de formulário. Lembre de liberar o domínio em connect-src (CSP no <head>)
+  privacyVersion: '2026-11-v1', // versão da política aceita pelo usuário (vai junto com o lead)
   videos: {
     apartamento: '',
     comercial: '',
@@ -929,6 +1056,88 @@ window.CM_CATALOG = {
     element.textContent = new Date().getFullYear();
   });
 
+  /* ABERTURA EM VÍDEO (SOMENTE DESKTOP) */
+  const root = document.documentElement;
+  const intro = $('#intro');
+  const introOptions = window.CM_INTRO || {};
+
+  // A classe has-intro só existe se o <head> decidiu que a abertura deve tocar.
+  let introPending = Boolean(intro) && root.classList.contains('has-intro');
+
+  // Quando a cortina começa a subir, as animações do site são liberadas.
+  let startReveal = () => {};
+
+  function setPageInert(state) {
+    $$('.site-header, main, .site-footer').forEach(element => {
+      element.inert = state;
+    });
+  }
+
+  function runIntro() {
+    const video = $('#intro-video');
+    const skip = $('#intro-skip');
+
+    let leaving = false;
+    let startTimer;
+    let failsafeTimer;
+
+    setPageInert(true);
+
+    const finish = () => {
+      clearTimeout(startTimer);
+      clearTimeout(failsafeTimer);
+
+      intro.remove();
+      root.classList.remove('has-intro');
+      setPageInert(false);
+    };
+
+    const leave = () => {
+      if (leaving) return;
+
+      leaving = true;
+      introPending = false;
+
+      clearTimeout(startTimer);
+      clearTimeout(failsafeTimer);
+
+      try {
+        if (introOptions.oncePerSession) {
+          sessionStorage.setItem('cm_intro_seen', '1');
+        }
+      } catch {}
+
+      video.pause();
+
+      // Efeito cortina: o vídeo sobe e revela o site
+      intro.classList.add('is-leaving');
+      setPageInert(false);
+      startReveal();
+
+      setTimeout(finish, 1300);
+    };
+
+    video.addEventListener('playing', () => clearTimeout(startTimer), { once: true });
+    video.addEventListener('ended', leave, { once: true });
+    video.addEventListener('error', leave, { once: true });
+
+    const source = $('source', video);
+    if (source) source.addEventListener('error', leave, { once: true });
+
+    skip.addEventListener('click', leave);
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') leave();
+    });
+
+    // Se o vídeo não começar em 3,5s (ou travar), segue para o site
+    startTimer = setTimeout(leave, 3500);
+    failsafeTimer = setTimeout(leave, 9000);
+
+    const attempt = video.play();
+    if (attempt && attempt.catch) attempt.catch(leave);
+  }
+
   /* MENU MOBILE */
   const menuButton = $('.menu-toggle');
   const menu = $('#main-nav');
@@ -1012,6 +1221,12 @@ window.CM_CATALOG = {
 
   let observer;
 
+  const observeAll = () => {
+    $$('.reveal,.text-reveal').forEach(element => {
+      observer.observe(element);
+    });
+  };
+
   if ('IntersectionObserver' in window && !motionQuery.matches) {
     $$('.text-reveal').forEach(splitTitle);
 
@@ -1029,10 +1244,15 @@ window.CM_CATALOG = {
 
     document.documentElement.classList.add('motion-ready');
 
-    $$('.reveal,.text-reveal').forEach(element => {
-      observer.observe(element);
-    });
+    // Com abertura em vídeo, as animações só começam quando a cortina sobe.
+    if (introPending) {
+      startReveal = observeAll;
+    } else {
+      observeAll();
+    }
   }
+
+  if (introPending) runIntro();
 
   function animateTitle(element) {
     if (!observer || motionQuery.matches) return;
@@ -1050,7 +1270,7 @@ window.CM_CATALOG = {
   }
 
   function revealView(view) {
-    if (!observer || motionQuery.matches) return;
+    if (!observer || motionQuery.matches || introPending) return;
 
     $$('.reveal,.text-reveal', view).forEach(element => {
       element.classList.remove('is-visible');
@@ -1098,10 +1318,10 @@ window.CM_CATALOG = {
     };
   }
 
+  // A query string (?utm_...) é preservada para as campanhas de marketing.
   function writeHash(hash, replace = false) {
     const url = new URL(location.href);
 
-    url.search = '';
     url.hash = hash;
 
     history[replace ? 'replaceState' : 'pushState']({}, '', url);
@@ -1137,6 +1357,7 @@ window.CM_CATALOG = {
     return catalog[category].models[modelIndex];
   }
 
+  // Trocar foto ou aba não deve empilhar entradas no histórico (botão "voltar")
   function saveSelection() {
     const params = new URLSearchParams({
       ambiente: category,
@@ -1144,7 +1365,7 @@ window.CM_CATALOG = {
       foto: String(imageIndex + 1)
     });
 
-    writeHash('colecoes?' + params);
+    writeHash('colecoes?' + params, true);
     lastRoute = location.href;
   }
 
@@ -1380,12 +1601,23 @@ window.CM_CATALOG = {
   const form = $('#lead-form');
   const interestInput = $('#interesse');
 
+  // O formulário só aparece (e só funciona) com JavaScript ativo.
+  form.hidden = false;
+  const formShownAt = Date.now();
+
+  // Só aceita como "interesse" valores que existem no catálogo (ignora texto arbitrário vindo da URL)
+  const allowedInterests = new Set(
+    Object.values(catalog).flatMap(entry =>
+      entry.models.map(model => `${entry.name} — ${model.name}`)
+    )
+  );
+
   function applyInterest(params) {
     const interest = params.get('interesse');
 
-    if (interest) {
+    if (interest && allowedInterests.has(interest)) {
       $('#interest-field').hidden = false;
-      interestInput.value = interest.slice(0, 180);
+      interestInput.value = interest;
     }
   }
 
@@ -1410,11 +1642,46 @@ window.CM_CATALOG = {
     const button = $('button[type=submit]', form);
     const data = Object.fromEntries(new FormData(form));
 
+    // Anti-robô 1: campo-armadilha preenchido → finge sucesso e descarta
+    if (data.website) {
+      status.textContent = 'Recebemos seu contato. Obrigado pelo interesse!';
+      form.reset();
+      return;
+    }
+
+    // Anti-robô 2: envio rápido demais (menos de 3s depois de abrir a página)
+    if (Date.now() - formShownAt < 3000) {
+      status.textContent = 'Aguarde um instante e tente novamente.';
+      return;
+    }
+
     if (data.telefone.replace(/\D/g, '').length < 10) {
       status.textContent = 'Confira o telefone com DDD antes de continuar.';
       $('#telefone').focus();
       return;
     }
+
+    // Parâmetros de campanha (utm_source etc.) para a equipe de marketing
+    const utm = {};
+
+    for (const [key, value] of new URLSearchParams(location.search)) {
+      if (/^utm_[a-z_]{1,20}$/.test(key)) utm[key] = value.slice(0, 100);
+    }
+
+    // Registro do consentimento (LGPD): texto exibido, data/hora e versão da política
+    const payload = {
+      nome: data.nome.trim(),
+      email: data.email.trim(),
+      telefone: data.telefone,
+      interesse: allowedInterests.has(data.interesse) ? data.interesse : '',
+      origem: 'Site CM Studio',
+      pagina: location.origin + location.pathname,
+      consentimento: true,
+      consentimento_texto: $('.consent span').textContent.replace(/\s+/g, ' ').trim(),
+      consentimento_em: new Date().toISOString(),
+      politica_versao: config.privacyVersion || '',
+      ...utm
+    };
 
     const whatsapp = String(config.whatsapp || '').replace(/\D/g, '');
 
@@ -1443,10 +1710,7 @@ window.CM_CATALOG = {
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            ...data,
-            origem: 'Site CM Studio'
-          }),
+          body: JSON.stringify(payload),
           signal: controller.signal
         });
 
@@ -1464,10 +1728,10 @@ window.CM_CATALOG = {
     } else if (whatsapp.length >= 12) {
       const text =
         `Olá, CM Studio! Quero receber inspirações para meu ambiente.\n` +
-        `Nome: ${data.nome}\n` +
-        `E-mail: ${data.email}\n` +
-        `Telefone: ${data.telefone}` +
-        (data.interesse ? '\nInteresse: ' + data.interesse : '');
+        `Nome: ${payload.nome}\n` +
+        `E-mail: ${payload.email}\n` +
+        `Telefone: ${payload.telefone}` +
+        (payload.interesse ? '\nInteresse: ' + payload.interesse : '');
 
       location.href =
         `https://wa.me/${whatsapp}?text=${encodeURIComponent(text)}`;
@@ -1480,35 +1744,33 @@ window.CM_CATALOG = {
     }
   });
 
+  /* MODAIS (fechar no X, clicando fora ou com Esc) */
+  function bindDialog(dialog, onClose) {
+    $('.dialog-close', dialog).addEventListener('click', () => dialog.close());
+
+    dialog.addEventListener('click', event => {
+      if (event.target !== dialog) return;
+
+      const bounds = dialog.getBoundingClientRect();
+
+      if (
+        event.clientX < bounds.left ||
+        event.clientX > bounds.right ||
+        event.clientY < bounds.top ||
+        event.clientY > bounds.bottom
+      ) {
+        dialog.close();
+      }
+    });
+
+    dialog.addEventListener('close', onClose);
+  }
+
   /* MODAL DOS VÍDEOS */
   const dialog = $('#video-dialog');
   const videoHolder = $('#video-content');
 
-  function closeVideo() {
-    dialog.close();
-    videoHolder.replaceChildren();
-  }
-
-  $('.dialog-close', dialog).addEventListener('click', closeVideo);
-
-  dialog.addEventListener('click', event => {
-    if (event.target !== dialog) return;
-
-    const bounds = dialog.getBoundingClientRect();
-
-    if (
-      event.clientX < bounds.left ||
-      event.clientX > bounds.right ||
-      event.clientY < bounds.top ||
-      event.clientY > bounds.bottom
-    ) {
-      closeVideo();
-    }
-  });
-
-  dialog.addEventListener('close', () => {
-    videoHolder.replaceChildren();
-  });
+  bindDialog(dialog, () => videoHolder.replaceChildren());
 
   $$('[data-video]').forEach(button => {
     button.addEventListener('click', () => {
@@ -1564,6 +1826,12 @@ window.CM_CATALOG = {
         iframe.title = button.dataset.title;
         iframe.allow = 'autoplay; fullscreen; picture-in-picture';
         iframe.allowFullscreen = true;
+        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+        // Isola o player: só recebe as permissões mínimas para funcionar
+        iframe.setAttribute(
+          'sandbox',
+          'allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox'
+        );
 
         videoHolder.append(iframe);
       } else if (url && /\.mp4$/i.test(url.pathname)) {
@@ -1600,6 +1868,15 @@ window.CM_CATALOG = {
 
       dialog.showModal();
     });
+  });
+
+  /* MODAL DA POLÍTICA DE PRIVACIDADE */
+  const privacyDialog = $('#privacy-dialog');
+
+  bindDialog(privacyDialog, () => {});
+
+  $$('[data-open-privacy]').forEach(button => {
+    button.addEventListener('click', () => privacyDialog.showModal());
   });
 
   /* APLICAÇÃO DAS ROTAS */
