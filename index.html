@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- SEGURANÇA: ao configurar o formulário, libere seu domínio em connect-src. -->
+  <!-- Ao configurar o formulário, libere seu domínio em connect-src. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https:; connect-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="robots" content="index, follow, max-image-preview:large">
@@ -14,11 +14,10 @@
   <meta name="theme-color" content="#25595c">
 
   <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <!-- Prioriza apenas a imagem principal correspondente à tela atual. -->
+  <!-- Prioriza a imagem principal correspondente à tela atual. -->
   <link rel="preload" as="image" href="assets/images/hero-mobile.png" media="(max-width:600px)" fetchpriority="high">
   <link rel="preload" as="image" href="assets/images/hero-desktop.png" media="(min-width:600.01px)" fetchpriority="high">
 
@@ -28,24 +27,26 @@
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&amp;family=Raleway:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
   </noscript>
 
-  <!-- ABERTURA ORIGINAL: curta e somente no desktop. -->
+  <!--
+    ABERTURA ORIGINAL COMPLETA:
+    - Mantém o vídeo inteiro na velocidade original.
+    - A saída começa somente quando o vídeo termina.
+    - A cortina sai em 150 ms.
+    - Os tempos de segurança abaixo servem apenas para falhas.
+  -->
   <script>
 window.CM_INTRO = {
   enabled: true,
   oncePerSession: false,
   skipOnDeepLink: true,
-
-  // Todos os valores abaixo estão em milissegundos.
-  startupTimeout: 200,
-  playbackDuration: 650,
   exitDuration: 150,
-  maxDuration: 1000
+  startupTimeout: 10000,
+  stallTimeout: 10000
 };
 
 (() => {
   const options = window.CM_INTRO;
   const root = document.documentElement;
-
   const desktop = matchMedia('(min-width:1025px)');
   const reducedMotion = matchMedia('(prefers-reduced-motion:reduce)');
   const connection = navigator.connection;
@@ -76,8 +77,6 @@ window.CM_INTRO = {
     } catch {}
   }
 
-  const startedAt = Date.now();
-
   let intro;
   let video;
   let source;
@@ -85,30 +84,57 @@ window.CM_INTRO = {
   let finished = false;
   let leaving = false;
   let played = false;
+  let lastProgressPosition = 0;
 
+  let bootstrapTimer;
   let startTimer;
-  let playTimer;
-  let leaveTimer;
+  let stallTimer;
   let exitTimer;
-  let deadlineTimer;
+
+  function clearPlaybackTimers() {
+    [
+      bootstrapTimer,
+      startTimer,
+      stallTimer
+    ].forEach(timer => clearTimeout(timer));
+  }
 
   function finish() {
     if (finished) return;
 
     finished = true;
 
-    [
-      startTimer,
-      playTimer,
-      leaveTimer,
-      exitTimer,
-      deadlineTimer
-    ].forEach(clearTimeout);
+    clearPlaybackTimers();
+    clearTimeout(exitTimer);
 
-    document.removeEventListener('DOMContentLoaded', start);
+    document.removeEventListener(
+      'DOMContentLoaded',
+      start
+    );
 
-    desktop.removeEventListener('change', checkViewport);
-    reducedMotion.removeEventListener('change', checkViewport);
+    document.removeEventListener(
+      'visibilitychange',
+      checkVisibility
+    );
+
+    desktop.removeEventListener(
+      'change',
+      checkViewport
+    );
+
+    reducedMotion.removeEventListener(
+      'change',
+      checkViewport
+    );
+
+    // Retira a cortina antes de limpar o vídeo.
+    const overlay =
+      intro || document.getElementById('intro');
+
+    const player =
+      video || document.getElementById('intro-video');
+
+    if (overlay) overlay.remove();
 
     root.classList.remove('has-intro');
 
@@ -117,9 +143,6 @@ window.CM_INTRO = {
     ).forEach(element => {
       element.inert = false;
     });
-
-    const overlay = intro || document.getElementById('intro');
-    const player = video || document.getElementById('intro-video');
 
     if (player) {
       try {
@@ -133,8 +156,6 @@ window.CM_INTRO = {
         player.load();
       } catch {}
     }
-
-    if (overlay) overlay.remove();
   }
 
   function leave() {
@@ -142,46 +163,122 @@ window.CM_INTRO = {
 
     leaving = true;
 
-    [
-      startTimer,
-      playTimer,
-      leaveTimer
-    ].forEach(clearTimeout);
+    clearPlaybackTimers();
 
     if (!played || !intro) {
       finish();
       return;
     }
 
+    // Mantém o último quadro até a cortina terminar de sair.
     video.pause();
+
+    intro.addEventListener('transitionend', event => {
+      if (
+        event.target === intro &&
+        event.propertyName === 'transform'
+      ) {
+        finish();
+      }
+    });
+
     intro.classList.add('is-leaving');
 
-    exitTimer = setTimeout(finish, options.exitDuration);
+    // Segurança caso o navegador não dispare transitionend.
+    exitTimer = setTimeout(
+      finish,
+      options.exitDuration + 50
+    );
   }
 
   function checkViewport() {
-    if (!desktop.matches || reducedMotion.matches) {
+    if (
+      !desktop.matches ||
+      reducedMotion.matches
+    ) {
       finish();
+    }
+  }
+
+  function watchStartup() {
+    clearTimeout(startTimer);
+
+    if (!document.hidden) {
+      startTimer = setTimeout(() => {
+        if (!played) finish();
+      }, options.startupTimeout);
+    }
+  }
+
+  function watchStall() {
+    clearTimeout(stallTimer);
+
+    if (
+      finished ||
+      leaving ||
+      document.hidden ||
+      !played
+    ) {
+      return;
+    }
+
+    const lastPosition = video.currentTime;
+
+    stallTimer = setTimeout(() => {
+      if (
+        finished ||
+        leaving ||
+        document.hidden
+      ) {
+        return;
+      }
+
+      if (video.ended) {
+        leave();
+      } else if (video.currentTime <= lastPosition) {
+        // Libera o site somente se o vídeo realmente ficou sem progresso.
+        finish();
+      } else {
+        lastProgressPosition = video.currentTime;
+        watchStall();
+      }
+    }, options.stallTimeout);
+  }
+
+  function checkVisibility() {
+    clearTimeout(startTimer);
+    clearTimeout(stallTimer);
+
+    if (
+      finished ||
+      leaving ||
+      document.hidden
+    ) {
+      return;
+    }
+
+    if (!played) {
+      watchStartup();
+    } else if (video.ended) {
+      leave();
+    } else {
+      watchStall();
     }
   }
 
   function start() {
     if (finished) return;
 
+    clearTimeout(bootstrapTimer);
+
     intro = document.getElementById('intro');
     video = document.getElementById('intro-video');
     source = video && video.querySelector('source');
-
-    const remaining =
-      options.maxDuration -
-      options.exitDuration -
-      (Date.now() - startedAt);
 
     if (
       !intro ||
       !video ||
       !source ||
-      remaining <= 0 ||
       !desktop.matches ||
       reducedMotion.matches
     ) {
@@ -201,74 +298,92 @@ window.CM_INTRO = {
         options.exitDuration + 'ms'
       );
 
-      desktop.addEventListener('change', checkViewport);
-      reducedMotion.addEventListener('change', checkViewport);
+      desktop.addEventListener(
+        'change',
+        checkViewport
+      );
 
-      video.addEventListener('loadedmetadata', () => {
-        if (finished || leaving) return;
+      reducedMotion.addEventListener(
+        'change',
+        checkViewport
+      );
 
-        if (
-          Number.isFinite(video.duration) &&
-          video.duration > 0
-        ) {
-          try {
-            video.playbackRate = Math.min(
-              8,
-              Math.max(
-                1,
-                video.duration / (options.playbackDuration / 1000)
-              )
-            );
-          } catch {}
-        }
-      }, { once: true });
+      document.addEventListener(
+        'visibilitychange',
+        checkVisibility
+      );
+
+      // Reprodução integral na velocidade original.
+      video.loop = false;
+      video.defaultPlaybackRate = 1;
+      video.playbackRate = 1;
 
       video.addEventListener('playing', () => {
         if (finished || leaving) return;
 
         played = true;
+        lastProgressPosition = video.currentTime;
+
         clearTimeout(startTimer);
+        watchStall();
 
         if (options.oncePerSession) {
           try {
-            sessionStorage.setItem('cm_intro_seen', '1');
+            sessionStorage.setItem(
+              'cm_intro_seen',
+              '1'
+            );
           } catch {}
         }
+      });
 
-        playTimer = setTimeout(
-          leave,
-          options.playbackDuration
-        );
-      }, { once: true });
-
-      video.addEventListener('ended', leave, { once: true });
-      video.addEventListener('error', leave, { once: true });
-      source.addEventListener('error', leave, { once: true });
-
-      startTimer = setTimeout(
+      // Saída normal somente após o término real do vídeo.
+      video.addEventListener(
+        'ended',
         leave,
-        Math.min(options.startupTimeout, remaining)
+        { once: true }
       );
 
-      leaveTimer = setTimeout(leave, remaining);
+      video.addEventListener(
+        'waiting',
+        watchStall
+      );
+
+      video.addEventListener('timeupdate', () => {
+        if (
+          video.currentTime > lastProgressPosition
+        ) {
+          lastProgressPosition = video.currentTime;
+          watchStall();
+        }
+      });
+
+      video.addEventListener(
+        'error',
+        finish,
+        { once: true }
+      );
+
+      source.addEventListener(
+        'error',
+        finish,
+        { once: true }
+      );
+
+      watchStartup();
 
       video.muted = true;
       video.preload = 'auto';
 
-      // Os arquivos só são solicitados quando a abertura realmente será usada.
-      video.poster = video.dataset.poster;
+      // Sem pôster de textura intermediário.
       source.src = source.dataset.src;
-
-      try {
-        video.playbackRate = 8;
-      } catch {}
 
       video.load();
 
       const attempt = video.play();
 
       if (attempt && attempt.catch) {
-        attempt.catch(leave);
+        attempt.catch(finish);
       }
     } catch {
       finish();
@@ -277,8 +392,12 @@ window.CM_INTRO = {
 
   root.classList.add('has-intro');
 
-  // Inclui início do vídeo, reprodução e saída da cortina.
-  deadlineTimer = setTimeout(finish, options.maxDuration);
+  // Protege apenas contra falha de inicialização.
+  // Este temporizador é cancelado quando start() roda.
+  bootstrapTimer = setTimeout(
+    finish,
+    options.startupTimeout
+  );
 
   if (document.readyState === 'loading') {
     document.addEventListener(
@@ -330,7 +449,7 @@ section[id]{scroll-margin-top:100px}
 .skip-link:focus{top:12px}
 .link-button{border:0;background:none;padding:0;font:inherit;color:inherit;text-decoration:underline;text-underline-offset:3px}
 
-/* ABERTURA ORIGINAL COM SAÍDA RÁPIDA — SOMENTE DESKTOP */
+/* ABERTURA ORIGINAL COMPLETA — SOMENTE DESKTOP */
 .intro{display:none}
 
 @media(min-width:1025px){
@@ -750,8 +869,7 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
 </head>
 
 <body>
-
-  <!-- Seu vídeo original. Não é baixado nos dispositivos em que a abertura é desativada. -->
+  <!-- Vídeo original completo, sem pôster intermediário. -->
   <div id="intro" class="intro" aria-hidden="true">
     <video
       id="intro-video"
@@ -761,7 +879,6 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
       preload="none"
       disablepictureinpicture
       disableremoteplayback
-      data-poster="assets/images/loading-poster.jpg"
     >
       <source data-src="assets/images/loading.mp4" type="video/mp4">
     </video>
