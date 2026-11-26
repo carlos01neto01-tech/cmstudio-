@@ -530,7 +530,7 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
   <!-- ABERTURA EM VÍDEO (aparece só no desktop; no celular/tablet nunca é exibida) -->
   <div id="intro" class="intro">
     <video id="intro-video" class="intro-video" muted autoplay playsinline preload="auto" disablepictureinpicture disableremoteplayback aria-hidden="true" poster="assets/images/loading-poster.jpg">
-      <source src="assets/videos/loading.mp4" type="video/mp4">
+      <source src="assets/images/loading.mp4" type="video/mp4">
     </video>
     <button type="button" class="intro-skip" id="intro-skip" aria-label="Pular animação de abertura">Pular</button>
   </div>
@@ -1078,6 +1078,7 @@ window.CM_CATALOG = {
     const skip = $('#intro-skip');
 
     let leaving = false;
+    let played = false;
     let startTimer;
     let failsafeTimer;
 
@@ -1109,6 +1110,13 @@ window.CM_CATALOG = {
 
       video.pause();
 
+      // O vídeo não chegou a tocar: abre o site direto, sem tela em branco nem cortina
+      if (!played) {
+        startReveal();
+        finish();
+        return;
+      }
+
       // Efeito cortina: o vídeo sobe e revela o site
       intro.classList.add('is-leaving');
       setPageInert(false);
@@ -1117,7 +1125,11 @@ window.CM_CATALOG = {
       setTimeout(finish, 1300);
     };
 
-    video.addEventListener('playing', () => clearTimeout(startTimer), { once: true });
+    video.addEventListener('playing', () => {
+      played = true;
+      clearTimeout(startTimer);
+    }, { once: true });
+
     video.addEventListener('ended', leave, { once: true });
     video.addEventListener('error', leave, { once: true });
 
