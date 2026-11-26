@@ -4,12 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- SEGURANÇA: política de conteúdo (GitHub Pages não permite cabeçalhos HTTP, então vai por <meta>).
-       Ao configurar o endpoint do formulário, ADICIONE o domínio dele em connect-src,
-       ex.: connect-src 'self' https://formspree.io; -->
+  <!-- SEGURANÇA: ao configurar o formulário, libere seu domínio em connect-src. -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https:; connect-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <!-- Produção: permite rastreamento e indexação pelos buscadores. -->
   <meta name="robots" content="index, follow, max-image-preview:large">
 
   <title>CM Studio | Móveis planejados em todos os detalhes</title>
@@ -17,16 +14,284 @@
   <meta name="theme-color" content="#25595c">
 
   <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- A imagem da primeira tela tem prioridade; somente a versão da tela atual é antecipada. -->
+
+  <!-- Prioriza apenas a imagem principal correspondente à tela atual. -->
   <link rel="preload" as="image" href="assets/images/hero-mobile.png" media="(max-width:600px)" fetchpriority="high">
   <link rel="preload" as="image" href="assets/images/hero-desktop.png" media="(min-width:600.01px)" fetchpriority="high">
-  <!-- Fontes não bloqueiam a página; as fontes originais são aplicadas assim que disponíveis. -->
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&amp;family=Raleway:wght@400;500;600;700&amp;display=swap" rel="stylesheet" media="print" onload="this.onload=null;this.media='all'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&amp;family=Raleway:wght@400;500;600;700&amp;display=swap" rel="stylesheet"></noscript>
 
-  <!-- ESTILOS DO SITE -->
+  <!-- Fontes sem bloquear a primeira exibição da página. -->
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&amp;family=Raleway:wght@400;500;600;700&amp;display=swap" rel="stylesheet" media="print" onload="this.onload=null;this.media='all'">
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&amp;family=Raleway:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  </noscript>
+
+  <!-- ABERTURA ORIGINAL: curta e somente no desktop. -->
+  <script>
+window.CM_INTRO = {
+  enabled: true,
+  oncePerSession: false,
+  skipOnDeepLink: true,
+
+  // Todos os valores abaixo estão em milissegundos.
+  startupTimeout: 200,
+  playbackDuration: 650,
+  exitDuration: 150,
+  maxDuration: 1000
+};
+
+(() => {
+  const options = window.CM_INTRO;
+  const root = document.documentElement;
+
+  const desktop = matchMedia('(min-width:1025px)');
+  const reducedMotion = matchMedia('(prefers-reduced-motion:reduce)');
+  const connection = navigator.connection;
+
+  if (
+    !options.enabled ||
+    !desktop.matches ||
+    reducedMotion.matches ||
+    (
+      connection &&
+      (
+        connection.saveData ||
+        /(^|-)2g$/.test(connection.effectiveType || '')
+      )
+    ) ||
+    (
+      options.skipOnDeepLink &&
+      location.hash &&
+      location.hash !== '#home'
+    )
+  ) {
+    return;
+  }
+
+  if (options.oncePerSession) {
+    try {
+      if (sessionStorage.getItem('cm_intro_seen')) return;
+    } catch {}
+  }
+
+  const startedAt = Date.now();
+
+  let intro;
+  let video;
+  let source;
+
+  let finished = false;
+  let leaving = false;
+  let played = false;
+
+  let startTimer;
+  let playTimer;
+  let leaveTimer;
+  let exitTimer;
+  let deadlineTimer;
+
+  function finish() {
+    if (finished) return;
+
+    finished = true;
+
+    [
+      startTimer,
+      playTimer,
+      leaveTimer,
+      exitTimer,
+      deadlineTimer
+    ].forEach(clearTimeout);
+
+    document.removeEventListener('DOMContentLoaded', start);
+
+    desktop.removeEventListener('change', checkViewport);
+    reducedMotion.removeEventListener('change', checkViewport);
+
+    root.classList.remove('has-intro');
+
+    document.querySelectorAll(
+      '.site-header, main, .site-footer'
+    ).forEach(element => {
+      element.inert = false;
+    });
+
+    const overlay = intro || document.getElementById('intro');
+    const player = video || document.getElementById('intro-video');
+
+    if (player) {
+      try {
+        player.pause();
+        player.removeAttribute('src');
+
+        player.querySelectorAll('source').forEach(item => {
+          item.removeAttribute('src');
+        });
+
+        player.load();
+      } catch {}
+    }
+
+    if (overlay) overlay.remove();
+  }
+
+  function leave() {
+    if (finished || leaving) return;
+
+    leaving = true;
+
+    [
+      startTimer,
+      playTimer,
+      leaveTimer
+    ].forEach(clearTimeout);
+
+    if (!played || !intro) {
+      finish();
+      return;
+    }
+
+    video.pause();
+    intro.classList.add('is-leaving');
+
+    exitTimer = setTimeout(finish, options.exitDuration);
+  }
+
+  function checkViewport() {
+    if (!desktop.matches || reducedMotion.matches) {
+      finish();
+    }
+  }
+
+  function start() {
+    if (finished) return;
+
+    intro = document.getElementById('intro');
+    video = document.getElementById('intro-video');
+    source = video && video.querySelector('source');
+
+    const remaining =
+      options.maxDuration -
+      options.exitDuration -
+      (Date.now() - startedAt);
+
+    if (
+      !intro ||
+      !video ||
+      !source ||
+      remaining <= 0 ||
+      !desktop.matches ||
+      reducedMotion.matches
+    ) {
+      finish();
+      return;
+    }
+
+    try {
+      document.querySelectorAll(
+        '.site-header, main, .site-footer'
+      ).forEach(element => {
+        element.inert = true;
+      });
+
+      intro.style.setProperty(
+        '--intro-exit',
+        options.exitDuration + 'ms'
+      );
+
+      desktop.addEventListener('change', checkViewport);
+      reducedMotion.addEventListener('change', checkViewport);
+
+      video.addEventListener('loadedmetadata', () => {
+        if (finished || leaving) return;
+
+        if (
+          Number.isFinite(video.duration) &&
+          video.duration > 0
+        ) {
+          try {
+            video.playbackRate = Math.min(
+              8,
+              Math.max(
+                1,
+                video.duration / (options.playbackDuration / 1000)
+              )
+            );
+          } catch {}
+        }
+      }, { once: true });
+
+      video.addEventListener('playing', () => {
+        if (finished || leaving) return;
+
+        played = true;
+        clearTimeout(startTimer);
+
+        if (options.oncePerSession) {
+          try {
+            sessionStorage.setItem('cm_intro_seen', '1');
+          } catch {}
+        }
+
+        playTimer = setTimeout(
+          leave,
+          options.playbackDuration
+        );
+      }, { once: true });
+
+      video.addEventListener('ended', leave, { once: true });
+      video.addEventListener('error', leave, { once: true });
+      source.addEventListener('error', leave, { once: true });
+
+      startTimer = setTimeout(
+        leave,
+        Math.min(options.startupTimeout, remaining)
+      );
+
+      leaveTimer = setTimeout(leave, remaining);
+
+      video.muted = true;
+      video.preload = 'auto';
+
+      // Os arquivos só são solicitados quando a abertura realmente será usada.
+      video.poster = video.dataset.poster;
+      source.src = source.dataset.src;
+
+      try {
+        video.playbackRate = 8;
+      } catch {}
+
+      video.load();
+
+      const attempt = video.play();
+
+      if (attempt && attempt.catch) {
+        attempt.catch(leave);
+      }
+    } catch {
+      finish();
+    }
+  }
+
+  root.classList.add('has-intro');
+
+  // Inclui início do vídeo, reprodução e saída da cortina.
+  deadlineTimer = setTimeout(finish, options.maxDuration);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener(
+      'DOMContentLoaded',
+      start,
+      { once: true }
+    );
+  } else {
+    start();
+  }
+})();
+  </script>
+
   <style>
 :root{
   --teal:#25595c;
@@ -65,6 +330,37 @@ section[id]{scroll-margin-top:100px}
 .skip-link:focus{top:12px}
 .link-button{border:0;background:none;padding:0;font:inherit;color:inherit;text-decoration:underline;text-underline-offset:3px}
 
+/* ABERTURA ORIGINAL COM SAÍDA RÁPIDA — SOMENTE DESKTOP */
+.intro{display:none}
+
+@media(min-width:1025px){
+  html.has-intro{overflow:hidden}
+
+  html.has-intro .intro{
+    display:block;
+    position:fixed;
+    inset:0;
+    z-index:1000;
+    background:#f4f3f0;
+    box-shadow:0 40px 80px -20px rgba(10,35,36,.45);
+    will-change:transform;
+  }
+
+  .intro.is-leaving{
+    transform:translateY(-102%);
+    transition:transform var(--intro-exit,150ms) cubic-bezier(.77,0,.18,1);
+  }
+
+  .intro-video{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    pointer-events:none;
+  }
+}
+
 /* CABEÇALHO FIXO COM EFEITO DE VIDRO */
 .site-header{
   position:sticky;
@@ -83,10 +379,12 @@ section[id]{scroll-margin-top:100px}
   box-shadow:0 9px 28px -17px rgba(17,47,48,.27);
   transition:background .25s ease,box-shadow .25s ease;
 }
+
 .site-header.is-scrolled{
   background:rgba(247,246,242,.56);
   box-shadow:0 12px 32px -15px rgba(17,47,48,.34);
 }
+
 .brand{display:block;flex-shrink:0}
 .brand img{width:128px;height:auto}
 .site-header nav{display:flex;align-items:center;gap:18px;font-size:.96rem}
@@ -98,6 +396,7 @@ section[id]{scroll-margin-top:100px}
 /* PRIMEIRA SEÇÃO */
 .hero{position:relative;margin-top:-1px;isolation:isolate}
 .hero-picture{display:block}
+
 .hero-picture img{
   display:block;
   width:100%;
@@ -108,6 +407,7 @@ section[id]{scroll-margin-top:100px}
   object-fit:contain;
   object-position:center top;
 }
+
 .hero-copy{
   position:absolute;
   inset:0;
@@ -119,6 +419,7 @@ section[id]{scroll-margin-top:100px}
   padding:clamp(28px,3.6vw,64px) 4% 0;
   text-align:center;
 }
+
 .eyebrow{font-size:.79rem;letter-spacing:.38em;text-transform:uppercase;font-weight:500}
 .hero .eyebrow{display:flex;align-items:center;gap:14px;margin-bottom:10px;font-size:clamp(.65rem,.95vw,.79rem)}
 .hero .eyebrow::before{content:'';display:block;width:5px;height:28px;border-radius:3px;background:var(--copper)}
@@ -249,7 +550,7 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
 .model-ideal{text-align:center;font-size:.9rem;min-height:2.7em;padding:8px 2px 0}
 .model-cta{width:94%;display:flex;margin:8px auto 0;min-height:62px;font-size:1.2rem}
 
-/* MODAIS (VÍDEOS E POLÍTICA DE PRIVACIDADE) */
+/* MODAIS */
 .video-dialog{border:1px solid #25595c55;border-radius:24px;background:var(--paper);color:var(--teal);padding:28px;max-width:960px;width:92%;max-height:90svh;overflow:auto}
 .video-dialog::backdrop{background:#061f23bf;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .video-dialog h2{font-size:2.2rem;margin:0 40px 22px 0}
@@ -449,17 +750,38 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
 </head>
 
 <body>
-  <!-- Entrada direta: sem vídeo ou temporizador bloqueando o conteúdo. -->
 
-  <!-- CABEÇALHO -->
+  <!-- Seu vídeo original. Não é baixado nos dispositivos em que a abertura é desativada. -->
+  <div id="intro" class="intro" aria-hidden="true">
+    <video
+      id="intro-video"
+      class="intro-video"
+      muted
+      playsinline
+      preload="none"
+      disablepictureinpicture
+      disableremoteplayback
+      data-poster="assets/images/loading-poster.jpg"
+    >
+      <source data-src="assets/images/loading.mp4" type="video/mp4">
+    </video>
+  </div>
+
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
 
+  <!-- CABEÇALHO -->
   <header class="site-header">
     <a class="brand" href="#home" aria-label="CM Studio — Home">
       <img src="assets/images/logo.svg" alt="CM Studio" width="160" height="62">
     </a>
 
-    <button class="menu-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="main-nav">
+    <button
+      class="menu-toggle"
+      type="button"
+      aria-label="Abrir menu"
+      aria-expanded="false"
+      aria-controls="main-nav"
+    >
       <span></span>
       <span></span>
       <span></span>
@@ -479,7 +801,11 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
       <!-- PRIMEIRA SEÇÃO -->
       <section class="hero" aria-labelledby="hero-title">
         <picture class="hero-picture">
-          <source media="(max-width:600px)" srcset="assets/images/hero-mobile.png">
+          <source
+            media="(max-width:600px)"
+            srcset="assets/images/hero-mobile.png"
+          >
+
           <img
             src="assets/images/hero-desktop.png"
             width="1280"
@@ -513,33 +839,89 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
       </section>
 
       <!-- AMBIENTES -->
-      <section class="collections-section section-shell" aria-labelledby="collections-title">
+      <section
+        class="collections-section section-shell"
+        aria-labelledby="collections-title"
+      >
         <div class="section-intro">
-          <h2 id="collections-title" class="text-reveal">Cada Ambiente uma Possibilidade</h2>
-          <p class="reveal">Móveis planejados que unem sofisticação, funcionalidade em cada espaço</p>
+          <h2 id="collections-title" class="text-reveal">
+            Cada Ambiente uma Possibilidade
+          </h2>
+
+          <p class="reveal">
+            Móveis planejados que unem sofisticação, funcionalidade em cada espaço
+          </p>
         </div>
 
         <div class="collection-grid cascade">
-          <a class="collection-card reveal scale-reveal" style="--delay:0ms" href="#colecoes?ambiente=cozinhas">
-            <img src="assets/images/categoria-1.png" width="265" height="331" loading="lazy" decoding="async" alt="Cozinha planejada com ilha e bancada em pedra">
+          <a
+            class="collection-card reveal scale-reveal"
+            style="--delay:0ms"
+            href="#colecoes?ambiente=cozinhas"
+          >
+            <img
+              src="assets/images/categoria-1.png"
+              width="265"
+              height="331"
+              loading="lazy"
+              decoding="async"
+              alt="Cozinha planejada com ilha e bancada em pedra"
+            >
+
             <h3>Cozinhas<br>Planejadas</h3>
             <span>Veja modelos</span>
           </a>
 
-          <a class="collection-card reveal scale-reveal" style="--delay:130ms" href="#colecoes?ambiente=salas">
-            <img src="assets/images/categoria-2.png" width="280" height="332" loading="lazy" decoding="async" alt="Sala de estar com painel de TV iluminado">
+          <a
+            class="collection-card reveal scale-reveal"
+            style="--delay:130ms"
+            href="#colecoes?ambiente=salas"
+          >
+            <img
+              src="assets/images/categoria-2.png"
+              width="280"
+              height="332"
+              loading="lazy"
+              decoding="async"
+              alt="Sala de estar com painel de TV iluminado"
+            >
+
             <h3>Salas e Ambientes<br>de Estar</h3>
             <span>Veja modelos</span>
           </a>
 
-          <a class="collection-card reveal scale-reveal" style="--delay:260ms" href="#colecoes?ambiente=dormitorios">
-            <img src="assets/images/categoria-3.png" width="281" height="331" loading="lazy" decoding="async" alt="Dormitório com closet e iluminação integrada">
+          <a
+            class="collection-card reveal scale-reveal"
+            style="--delay:260ms"
+            href="#colecoes?ambiente=dormitorios"
+          >
+            <img
+              src="assets/images/categoria-3.png"
+              width="281"
+              height="331"
+              loading="lazy"
+              decoding="async"
+              alt="Dormitório com closet e iluminação integrada"
+            >
+
             <h3>Dormitórios<br>e Closets</h3>
             <span>Veja modelos</span>
           </a>
 
-          <a class="collection-card reveal scale-reveal" style="--delay:390ms" href="#colecoes?ambiente=office">
-            <img src="assets/images/categoria-4.png" width="281" height="332" loading="lazy" decoding="async" alt="Home office com estantes e mesa sob medida">
+          <a
+            class="collection-card reveal scale-reveal"
+            style="--delay:390ms"
+            href="#colecoes?ambiente=office"
+          >
+            <img
+              src="assets/images/categoria-4.png"
+              width="281"
+              height="332"
+              loading="lazy"
+              decoding="async"
+              alt="Home office com estantes e mesa sob medida"
+            >
+
             <h3>Home Office</h3>
             <span>Veja modelos</span>
           </a>
@@ -547,11 +929,24 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
       </section>
 
       <!-- METODOLOGIA -->
-      <section id="sobre" class="method-section section-shell" aria-labelledby="method-title">
+      <section
+        id="sobre"
+        class="method-section section-shell"
+        aria-labelledby="method-title"
+      >
         <div class="method-card reveal scale-reveal">
           <p class="eyebrow">Do conceito à execução</p>
-          <h2 id="method-title" class="text-reveal">Antes de existir,<br>é pensado</h2>
-          <p>Um ambiente de alto padrão começa muito antes de ficar pronto. Planejamento, materiais e precisão dão forma a espaços que unem estética e funcionalidade.</p>
+
+          <h2 id="method-title" class="text-reveal">
+            Antes de existir,<br>é pensado
+          </h2>
+
+          <p>
+            Um ambiente de alto padrão começa muito antes de ficar pronto.
+            Planejamento, materiais e precisão dão forma a espaços que unem
+            estética e funcionalidade.
+          </p>
+
           <a class="button" href="#colecoes">Conheça nossos projetos</a>
         </div>
 
@@ -559,56 +954,84 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
           <details class="method-item reveal" style="--delay:220ms">
             <summary>
               <span class="method-number">01</span>
+
               <span>
                 <strong>Leitura do ambiente</strong>
                 <small>O espaço como ponto de partida.</small>
               </span>
+
               <span class="method-arrow" aria-hidden="true">↗</span>
             </summary>
+
             <div class="detail-answer">
-              <p>Entendemos a rotina, as necessidades e as possibilidades do ambiente. Medidas, circulação e iluminação orientam as primeiras decisões do projeto.</p>
+              <p>
+                Entendemos a rotina, as necessidades e as possibilidades do
+                ambiente. Medidas, circulação e iluminação orientam as primeiras
+                decisões do projeto.
+              </p>
             </div>
           </details>
 
           <details class="method-item reveal" style="--delay:340ms">
             <summary>
               <span class="method-number">02</span>
+
               <span>
                 <strong>Concepção do projeto</strong>
                 <small>Suas ideias ganham forma.</small>
               </span>
+
               <span class="method-arrow" aria-hidden="true">↗</span>
             </summary>
+
             <div class="detail-answer">
-              <p>Organizamos o layout e as soluções de marcenaria para conectar o uso do espaço à sua personalidade. Cada escolha faz parte de uma composição.</p>
+              <p>
+                Organizamos o layout e as soluções de marcenaria para conectar
+                o uso do espaço à sua personalidade. Cada escolha faz parte
+                de uma composição.
+              </p>
             </div>
           </details>
 
           <details class="method-item reveal" style="--delay:460ms">
             <summary>
               <span class="method-number">03</span>
+
               <span>
                 <strong>Curadoria de materiais</strong>
                 <small>Design com intenção.</small>
               </span>
+
               <span class="method-arrow" aria-hidden="true">↗</span>
             </summary>
+
             <div class="detail-answer">
-              <p>Texturas, cores, acabamentos e ferragens são avaliados em conjunto. A seleção busca equilíbrio entre estética, funcionalidade e as necessidades do projeto.</p>
+              <p>
+                Texturas, cores, acabamentos e ferragens são avaliados em
+                conjunto. A seleção busca equilíbrio entre estética,
+                funcionalidade e as necessidades do projeto.
+              </p>
             </div>
           </details>
 
           <details class="method-item reveal" style="--delay:580ms">
             <summary>
               <span class="method-number">04</span>
+
               <span>
                 <strong>Materialização</strong>
                 <small>O projeto encontra o ambiente.</small>
               </span>
+
               <span class="method-arrow" aria-hidden="true">↗</span>
             </summary>
+
             <div class="detail-answer">
-              <p>Com as definições aprovadas, o planejamento orienta a produção e a montagem. Os detalhes de execução acompanham o que foi pensado para o espaço.</p>
+              <p>
+                Com as definições aprovadas, o planejamento orienta a produção
+                e a montagem. Os detalhes de execução acompanham o que foi
+                pensado para o espaço.
+              </p>
             </div>
           </details>
         </div>
@@ -617,47 +1040,132 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
       <!-- VÍDEOS -->
       <section class="video-section" aria-label="Tours de projetos">
         <div class="video-track cascade">
-          <button type="button" class="video-card reveal scale-reveal" data-video="apartamento" data-title="Um apartamento inesquecível">
-            <img src="assets/images/video-apartamento.jpg" width="1672" height="941" alt="Tour completo — Um apartamento inesquecível" loading="lazy" decoding="async">
-            <span class="sr-only">Abrir tour: Um apartamento inesquecível</span>
+          <button
+            type="button"
+            class="video-card reveal scale-reveal"
+            data-video="apartamento"
+            data-title="Um apartamento inesquecível"
+          >
+            <img
+              src="assets/images/video-apartamento.jpg"
+              width="1672"
+              height="941"
+              alt="Tour completo — Um apartamento inesquecível"
+              loading="lazy"
+              decoding="async"
+            >
+
+            <span class="sr-only">
+              Abrir tour: Um apartamento inesquecível
+            </span>
           </button>
 
-          <button type="button" class="video-card reveal scale-reveal" style="--delay:130ms" data-video="comercial" data-title="Um espaço comercial de alto padrão">
-            <img src="assets/images/video-comercial.jpg" width="1600" height="900" alt="Tour completo — Um espaço comercial de alto padrão" loading="lazy" decoding="async">
-            <span class="sr-only">Abrir tour: Um espaço comercial de alto padrão</span>
+          <button
+            type="button"
+            class="video-card reveal scale-reveal"
+            style="--delay:130ms"
+            data-video="comercial"
+            data-title="Um espaço comercial de alto padrão"
+          >
+            <img
+              src="assets/images/video-comercial.jpg"
+              width="1600"
+              height="900"
+              alt="Tour completo — Um espaço comercial de alto padrão"
+              loading="lazy"
+              decoding="async"
+            >
+
+            <span class="sr-only">
+              Abrir tour: Um espaço comercial de alto padrão
+            </span>
           </button>
 
-          <button type="button" class="video-card reveal scale-reveal" style="--delay:260ms" data-video="cozinha" data-title="Uma cozinha sob medida">
-            <img src="assets/images/video-cozinha.jpg" width="1600" height="900" alt="Tour completo — Uma cozinha sob medida" loading="lazy" decoding="async">
-            <span class="sr-only">Abrir tour: Uma cozinha sob medida</span>
+          <button
+            type="button"
+            class="video-card reveal scale-reveal"
+            style="--delay:260ms"
+            data-video="cozinha"
+            data-title="Uma cozinha sob medida"
+          >
+            <img
+              src="assets/images/video-cozinha.jpg"
+              width="1600"
+              height="900"
+              alt="Tour completo — Uma cozinha sob medida"
+              loading="lazy"
+              decoding="async"
+            >
+
+            <span class="sr-only">
+              Abrir tour: Uma cozinha sob medida
+            </span>
           </button>
         </div>
       </section>
 
       <!-- CONTATO -->
-      <section id="contato" class="contact-section section-shell" aria-labelledby="contact-title">
+      <section
+        id="contato"
+        class="contact-section section-shell"
+        aria-labelledby="contact-title"
+      >
         <div class="contact-panel reveal scale-reveal">
           <div class="contact-copy">
-            <h2 id="contact-title" class="text-reveal">Inspirações para o seu próximo ambiente</h2>
-            <p>Deixe seu e-mail e telefone para receber ideias de projetos e novos modelos de móveis planejados da CM Studio.</p>
+            <h2 id="contact-title" class="text-reveal">
+              Inspirações para o seu próximo ambiente
+            </h2>
+
+            <p>
+              Deixe seu e-mail e telefone para receber ideias de projetos
+              e novos modelos de móveis planejados da CM Studio.
+            </p>
           </div>
 
-          <!-- O formulário nasce oculto e só é liberado pelo JavaScript.
-               Sem JS, nenhum dado pessoal pode ser enviado pela URL (GET). -->
+          <!-- Sem JavaScript o formulário permanece oculto. -->
           <form id="lead-form" class="lead-form" hidden>
             <div class="field reveal">
               <label for="nome">Nome:</label>
-              <input id="nome" name="nome" autocomplete="name" placeholder="Seu nome" required minlength="2" maxlength="100">
+
+              <input
+                id="nome"
+                name="nome"
+                autocomplete="name"
+                placeholder="Seu nome"
+                required
+                minlength="2"
+                maxlength="100"
+              >
             </div>
 
             <div class="field reveal" style="--delay:100ms">
               <label for="email">E-mail:</label>
-              <input id="email" name="email" type="email" autocomplete="email" placeholder="voce@email.com" required maxlength="180">
+
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autocomplete="email"
+                placeholder="voce@email.com"
+                required
+                maxlength="180"
+              >
             </div>
 
             <div class="field reveal" style="--delay:200ms">
               <label for="telefone">Telefone:</label>
-              <input id="telefone" name="telefone" type="tel" inputmode="tel" autocomplete="tel" placeholder="(44) 99999-9999" required minlength="14" maxlength="16">
+
+              <input
+                id="telefone"
+                name="telefone"
+                type="tel"
+                inputmode="tel"
+                autocomplete="tel"
+                placeholder="(44) 99999-9999"
+                required
+                minlength="14"
+                maxlength="16"
+              >
             </div>
 
             <div id="interest-field" class="field" hidden>
@@ -665,19 +1173,41 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
               <input id="interesse" name="interesse" readonly>
             </div>
 
-            <!-- Campo-armadilha contra robôs (humanos não veem nem preenchem) -->
+            <!-- Campo-armadilha contra robôs. -->
             <div class="hp" aria-hidden="true">
               <label for="website">Não preencha este campo</label>
-              <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+
+              <input
+                id="website"
+                name="website"
+                type="text"
+                tabindex="-1"
+                autocomplete="off"
+              >
             </div>
 
             <label class="consent">
               <input type="checkbox" name="consentimento" required>
-              <span>Concordo em receber contato da CM Studio por e-mail, telefone ou WhatsApp, conforme a <button type="button" class="link-button" data-open-privacy>Política de Privacidade</button>. Posso solicitar o cancelamento quando quiser.</span>
+
+              <span>
+                Concordo em receber contato da CM Studio por e-mail,
+                telefone ou WhatsApp, conforme a
+                <button
+                  type="button"
+                  class="link-button"
+                  data-open-privacy
+                >Política de Privacidade</button>.
+                Posso solicitar o cancelamento quando quiser.
+              </span>
             </label>
 
             <button class="button" type="submit">Quero Receber</button>
-            <p class="form-status" role="status" aria-live="polite"></p>
+
+            <p
+              class="form-status"
+              role="status"
+              aria-live="polite"
+            ></p>
           </form>
         </div>
       </section>
@@ -685,7 +1215,9 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
       <!-- PERGUNTAS FREQUENTES -->
       <section class="faq-section" aria-labelledby="faq-title">
         <div class="section-shell">
-          <h2 id="faq-title" class="text-reveal">Perguntas Frequentes</h2>
+          <h2 id="faq-title" class="text-reveal">
+            Perguntas Frequentes
+          </h2>
 
           <div class="faq-list">
             <details class="faq-item reveal">
@@ -693,8 +1225,14 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
                 Como funciona o orçamento e a visita técnica?
                 <span class="plus" aria-hidden="true"></span>
               </summary>
+
               <div class="detail-answer">
-                <p>O primeiro passo é conversar sobre o ambiente e o que você procura. A equipe orienta quais informações são necessárias para o orçamento e combina os detalhes da visita técnica, conforme o projeto.</p>
+                <p>
+                  O primeiro passo é conversar sobre o ambiente e o que você
+                  procura. A equipe orienta quais informações são necessárias
+                  para o orçamento e combina os detalhes da visita técnica,
+                  conforme o projeto.
+                </p>
               </div>
             </details>
 
@@ -703,8 +1241,13 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
                 Qual o prazo médio de projeto e de produção?
                 <span class="plus" aria-hidden="true"></span>
               </summary>
+
               <div class="detail-answer">
-                <p>O prazo depende do tamanho do projeto, dos materiais e das etapas aprovadas. O cronograma de projeto, produção e montagem é alinhado com a equipe antes da contratação.</p>
+                <p>
+                  O prazo depende do tamanho do projeto, dos materiais e das
+                  etapas aprovadas. O cronograma de projeto, produção e montagem
+                  é alinhado com a equipe antes da contratação.
+                </p>
               </div>
             </details>
 
@@ -713,8 +1256,13 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
                 Vocês atendem arquitetos e projetos já prontos?
                 <span class="plus" aria-hidden="true"></span>
               </summary>
+
               <div class="detail-answer">
-                <p>Envie seu projeto para avaliação da equipe. A conversa inicial permite verificar as soluções previstas, as necessidades técnicas e como a marcenaria pode compor o ambiente.</p>
+                <p>
+                  Envie seu projeto para avaliação da equipe. A conversa inicial
+                  permite verificar as soluções previstas, as necessidades
+                  técnicas e como a marcenaria pode compor o ambiente.
+                </p>
               </div>
             </details>
 
@@ -723,8 +1271,13 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
                 Qual a garantia e como é feita a montagem?
                 <span class="plus" aria-hidden="true"></span>
               </summary>
+
               <div class="detail-answer">
-                <p>As condições de garantia e os detalhes da montagem devem constar na proposta e no contrato. Solicite essas informações à equipe para conhecer os termos aplicáveis ao seu projeto.</p>
+                <p>
+                  As condições de garantia e os detalhes da montagem devem
+                  constar na proposta e no contrato. Solicite essas informações
+                  à equipe para conhecer os termos aplicáveis ao seu projeto.
+                </p>
               </div>
             </details>
 
@@ -733,8 +1286,13 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
                 Quais regiões vocês atendem?
                 <span class="plus" aria-hidden="true"></span>
               </summary>
+
               <div class="detail-answer">
-                <p>Informe sua cidade e o ambiente desejado no contato inicial. A equipe confirma a disponibilidade de atendimento, visita técnica e montagem na sua região.</p>
+                <p>
+                  Informe sua cidade e o ambiente desejado no contato inicial.
+                  A equipe confirma a disponibilidade de atendimento, visita
+                  técnica e montagem na sua região.
+                </p>
               </div>
             </details>
           </div>
@@ -743,37 +1301,101 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
     </div>
 
     <!-- TELA DE COLEÇÕES -->
-    <div id="colecoes" class="catalog-page section-shell" data-view="colecoes" hidden>
+    <div
+      id="colecoes"
+      class="catalog-page section-shell"
+      data-view="colecoes"
+      hidden
+    >
       <nav class="category-tabs reveal" aria-label="Escolher ambiente">
-        <a href="#colecoes?ambiente=cozinhas" data-category="cozinhas">Cozinhas planejadas</a>
-        <a href="#colecoes?ambiente=salas" data-category="salas">Salas e Ambientes de Estar</a>
-        <a href="#colecoes?ambiente=dormitorios" data-category="dormitorios">Dormitórios e Closets</a>
-        <a href="#colecoes?ambiente=office" data-category="office">Home Office</a>
+        <a
+          href="#colecoes?ambiente=cozinhas"
+          data-category="cozinhas"
+        >Cozinhas planejadas</a>
+
+        <a
+          href="#colecoes?ambiente=salas"
+          data-category="salas"
+        >Salas e Ambientes de Estar</a>
+
+        <a
+          href="#colecoes?ambiente=dormitorios"
+          data-category="dormitorios"
+        >Dormitórios e Closets</a>
+
+        <a
+          href="#colecoes?ambiente=office"
+          data-category="office"
+        >Home Office</a>
       </nav>
 
       <section class="catalog-layout" aria-labelledby="catalog-title">
         <div class="catalog-copy">
-          <h1 id="catalog-title" tabindex="-1" class="text-reveal">Cozinhas sob medida, do preparo ao convívio. Escolha o formato ideal para o seu espaço</h1>
-          <p id="catalog-description" class="reveal">Organização e funcionalidade em uma composição pensada para a sua rotina.</p>
+          <h1
+            id="catalog-title"
+            tabindex="-1"
+            class="text-reveal"
+          >Cozinhas sob medida, do preparo ao convívio. Escolha o formato ideal para o seu espaço</h1>
+
+          <p id="catalog-description" class="reveal">
+            Organização e funcionalidade em uma composição pensada para a sua rotina.
+          </p>
         </div>
 
         <div class="catalog-product reveal scale-reveal">
-          <div id="model-tabs" class="model-tabs" role="tablist" aria-label="Modelos do ambiente"></div>
+          <div
+            id="model-tabs"
+            class="model-tabs"
+            role="tablist"
+            aria-label="Modelos do ambiente"
+          ></div>
 
           <div id="model-panel" role="tabpanel" tabindex="0">
             <div class="gallery-frame">
-              <img id="model-image" src="assets/images/cozinha-linear-1.jpg" width="1672" height="941" loading="lazy" decoding="async" alt="Modelo de cozinha linear">
+              <img
+                id="model-image"
+                src="assets/images/cozinha-linear-1.jpg"
+                width="1672"
+                height="941"
+                loading="lazy"
+                decoding="async"
+                alt="Modelo de cozinha linear"
+              >
 
-              <button class="gallery-prev" type="button" aria-label="Imagem anterior">‹</button>
-              <button class="gallery-next" type="button" aria-label="Próxima imagem">›</button>
+              <button
+                class="gallery-prev"
+                type="button"
+                aria-label="Imagem anterior"
+              >‹</button>
+
+              <button
+                class="gallery-next"
+                type="button"
+                aria-label="Próxima imagem"
+              >›</button>
 
               <div class="model-tags" id="model-tags"></div>
             </div>
 
-            <div class="gallery-dots" id="gallery-dots" aria-label="Escolher imagem"></div>
+            <div
+              class="gallery-dots"
+              id="gallery-dots"
+              aria-label="Escolher imagem"
+            ></div>
+
             <p class="model-ideal" id="model-ideal"></p>
-            <a class="button model-cta" id="model-cta" href="#contato">Quero esse modelo</a>
-            <p class="sr-only" id="gallery-status" aria-live="polite"></p>
+
+            <a
+              class="button model-cta"
+              id="model-cta"
+              href="#contato"
+            >Quero esse modelo</a>
+
+            <p
+              class="sr-only"
+              id="gallery-status"
+              aria-live="polite"
+            ></p>
           </div>
         </div>
       </section>
@@ -784,10 +1406,18 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
   <footer class="site-footer">
     <div class="footer-inner section-shell">
       <a class="brand" href="#home" aria-label="CM Studio — Home">
-        <img src="assets/images/logo.svg" alt="CM Studio" width="160" height="62">
+        <img
+          src="assets/images/logo.svg"
+          alt="CM Studio"
+          width="160"
+          height="62"
+        >
       </a>
 
-      <p>Ambientes pensados.<br>Detalhes que fazem parte de você.</p>
+      <p>
+        Ambientes pensados.<br>
+        Detalhes que fazem parte de você.
+      </p>
 
       <nav aria-label="Navegação do rodapé">
         <a href="#home">Home</a>
@@ -798,45 +1428,113 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
     </div>
 
     <div class="footer-bottom section-shell">
-      <small>© <span data-year>2026</span> CM Studio. Todos os direitos reservados.</small>
-      <small><button type="button" class="link-button" data-open-privacy>Política de Privacidade</button> · Desenvolvido por PROPACT MARKETING</small>
+      <small>
+        © <span data-year>2026</span> CM Studio.
+        Todos os direitos reservados.
+      </small>
+
+      <small>
+        <button
+          type="button"
+          class="link-button"
+          data-open-privacy
+        >Política de Privacidade</button>
+        · Desenvolvido por PROPACT MARKETING
+      </small>
     </div>
   </footer>
 
   <!-- MODAL DE VÍDEOS -->
-  <dialog id="video-dialog" class="video-dialog" aria-labelledby="video-title">
-    <button type="button" class="dialog-close" aria-label="Fechar vídeo">×</button>
+  <dialog
+    id="video-dialog"
+    class="video-dialog"
+    aria-labelledby="video-title"
+  >
+    <button
+      type="button"
+      class="dialog-close"
+      aria-label="Fechar vídeo"
+    >×</button>
+
     <h2 id="video-title"></h2>
     <div id="video-content"></div>
   </dialog>
 
-  <!-- MODAL DA POLÍTICA DE PRIVACIDADE
-       MODELO PROVISÓRIO: preencha os campos [entre colchetes] e revise com assessoria jurídica antes de publicar. -->
-  <dialog id="privacy-dialog" class="video-dialog" aria-labelledby="privacy-title">
-    <button type="button" class="dialog-close" aria-label="Fechar política de privacidade">×</button>
+  <!-- MODELO PROVISÓRIO: preencha os campos entre colchetes. -->
+  <dialog
+    id="privacy-dialog"
+    class="video-dialog"
+    aria-labelledby="privacy-title"
+  >
+    <button
+      type="button"
+      class="dialog-close"
+      aria-label="Fechar política de privacidade"
+    >×</button>
+
     <h2 id="privacy-title">Política de Privacidade</h2>
+
     <div>
-      <p><strong>Controlador dos dados:</strong> [RAZÃO SOCIAL], CNPJ [00.000.000/0000-00], [ENDEREÇO COMPLETO].</p>
-      <p><strong>Contato do encarregado (DPO):</strong> [NOME] — [E-MAIL].</p>
-      <p><strong>Dados coletados:</strong> nome, e-mail, telefone e o ambiente de seu interesse, informados por você no formulário.</p>
-      <p><strong>Finalidade e base legal:</strong> enviar ideias de projetos e responder ao seu contato, com base no seu consentimento (LGPD, art. 7º, I).</p>
-      <p><strong>Compartilhamento:</strong> [LISTAR os serviços que recebem os dados, ex.: ferramenta de formulários, CRM, e-mail marketing].</p>
-      <p><strong>Retenção:</strong> [PRAZO] ou até você revogar o consentimento.</p>
-      <p><strong>Seus direitos:</strong> confirmar a existência de tratamento, acessar, corrigir, excluir e portar seus dados, e revogar o consentimento a qualquer momento, pelo e-mail acima (LGPD, art. 18).</p>
+      <p>
+        <strong>Controlador dos dados:</strong>
+        [RAZÃO SOCIAL], CNPJ [00.000.000/0000-00], [ENDEREÇO COMPLETO].
+      </p>
+
+      <p>
+        <strong>Contato do encarregado (DPO):</strong>
+        [NOME] — [E-MAIL].
+      </p>
+
+      <p>
+        <strong>Dados coletados:</strong>
+        nome, e-mail, telefone e o ambiente de seu interesse,
+        informados por você no formulário.
+      </p>
+
+      <p>
+        <strong>Finalidade e base legal:</strong>
+        enviar ideias de projetos e responder ao seu contato,
+        com base no seu consentimento (LGPD, art. 7º, I).
+      </p>
+
+      <p>
+        <strong>Compartilhamento:</strong>
+        [LISTAR os serviços que recebem os dados, ex.: ferramenta de
+        formulários, CRM, e-mail marketing].
+      </p>
+
+      <p>
+        <strong>Retenção:</strong>
+        [PRAZO] ou até você revogar o consentimento.
+      </p>
+
+      <p>
+        <strong>Seus direitos:</strong>
+        confirmar a existência de tratamento, acessar, corrigir,
+        excluir e portar seus dados, e revogar o consentimento a qualquer
+        momento, pelo e-mail acima (LGPD, art. 18).
+      </p>
     </div>
   </dialog>
 
   <noscript>
-    <style>#colecoes[hidden]{display:block!important}</style>
-    <p class="section-shell">Ative o JavaScript para alternar modelos, usar as galerias e enviar o formulário. A Home e as perguntas frequentes continuam disponíveis.</p>
+    <style>
+      #colecoes[hidden]{display:block!important}
+    </style>
+
+    <p class="section-shell">
+      Ative o JavaScript para alternar modelos, usar as galerias e enviar
+      o formulário. A Home e as perguntas frequentes continuam disponíveis.
+    </p>
   </noscript>
 
   <!-- CONFIGURAÇÕES -->
   <script>
 window.CM_CONFIG = {
-  whatsapp: '',          // ex.: '5544999999999' (somente números, com 55 + DDD)
-  leadEndpoint: '',      // URL HTTPS do serviço de formulário. Lembre de liberar o domínio em connect-src (CSP no <head>)
-  privacyVersion: '2026-11-v1', // versão da política aceita pelo usuário (vai junto com o lead)
+  whatsapp: '',
+  leadEndpoint: '',
+  privacyVersion: '2026-11-v1',
+
   videos: {
     apartamento: '',
     comercial: '',
@@ -851,6 +1549,7 @@ window.CM_CATALOG = {
   cozinhas: {
     name: 'Cozinhas planejadas',
     title: 'Cozinhas sob medida, do preparo ao convívio. Escolha o formato ideal para o seu espaço',
+
     models: [
       {
         id: 'linear',
@@ -885,6 +1584,7 @@ window.CM_CATALOG = {
   salas: {
     name: 'Salas e Ambientes de Estar',
     title: 'Salas feitas para viver. Escolha a composição que combina com o seu ambiente',
+
     models: [
       {
         id: 'nichos',
@@ -919,6 +1619,7 @@ window.CM_CATALOG = {
   dormitorios: {
     name: 'Dormitórios e Closets',
     title: 'Seu espaço de descanso, pensado em cada detalhe',
+
     models: [
       {
         id: 'dormitorio-closet',
@@ -935,6 +1636,7 @@ window.CM_CATALOG = {
   office: {
     name: 'Home Office',
     title: 'Um espaço para criar, trabalhar e se concentrar',
+
     models: [
       {
         id: 'home-office',
@@ -955,12 +1657,18 @@ window.CM_CATALOG = {
 (() => {
   'use strict';
 
-  const $ = (selector, root = document) => root.querySelector(selector);
-  const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+  const $ = (selector, root = document) =>
+    root.querySelector(selector);
+
+  const $$ = (selector, root = document) =>
+    [...root.querySelectorAll(selector)];
 
   const config = window.CM_CONFIG || {};
   const catalog = window.CM_CATALOG;
-  const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+
+  const motionQuery = matchMedia(
+    '(prefers-reduced-motion: reduce)'
+  );
 
   const homeView = $('#home');
   const collectionView = $('#colecoes');
@@ -984,10 +1692,19 @@ window.CM_CATALOG = {
   }
 
   menuButton.addEventListener('click', () => {
-    const open = menuButton.getAttribute('aria-expanded') !== 'true';
+    const open =
+      menuButton.getAttribute('aria-expanded') !== 'true';
 
-    menuButton.setAttribute('aria-expanded', String(open));
-    menuButton.setAttribute('aria-label', open ? 'Fechar menu' : 'Abrir menu');
+    menuButton.setAttribute(
+      'aria-expanded',
+      String(open)
+    );
+
+    menuButton.setAttribute(
+      'aria-label',
+      open ? 'Fechar menu' : 'Abrir menu'
+    );
+
     menu.classList.toggle('is-open', open);
   });
 
@@ -996,21 +1713,34 @@ window.CM_CATALOG = {
   });
 
   document.addEventListener('click', event => {
-    if (!event.target.closest('.site-header')) closeMenu();
+    if (!event.target.closest('.site-header')) {
+      closeMenu();
+    }
   });
 
-  matchMedia('(min-width:701px)').addEventListener('change', event => {
-    if (event.matches) closeMenu();
-  });
+  matchMedia('(min-width:701px)').addEventListener(
+    'change',
+    event => {
+      if (event.matches) closeMenu();
+    }
+  );
 
   /* VIDRO E SOMBRA NA ROLAGEM */
   const glassHeader = $('.site-header');
 
   const syncGlassHeader = () => {
-    glassHeader.classList.toggle('is-scrolled', window.scrollY > 8);
+    glassHeader.classList.toggle(
+      'is-scrolled',
+      window.scrollY > 8
+    );
   };
 
-  window.addEventListener('scroll', syncGlassHeader, { passive: true });
+  window.addEventListener(
+    'scroll',
+    syncGlassHeader,
+    { passive: true }
+  );
+
   syncGlassHeader();
 
   /* ANIMAÇÃO VERTICAL DOS TEXTOS */
@@ -1019,10 +1749,16 @@ window.CM_CATALOG = {
 
     let index = 0;
 
-    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT
+    );
+
     const nodes = [];
 
-    while (walker.nextNode()) nodes.push(walker.currentNode);
+    while (walker.nextNode()) {
+      nodes.push(walker.currentNode);
+    }
 
     for (const node of nodes) {
       const fragment = document.createDocumentFragment();
@@ -1031,7 +1767,10 @@ window.CM_CATALOG = {
         if (!token) continue;
 
         if (/^\s+$/.test(token)) {
-          fragment.append(document.createTextNode(token));
+          fragment.append(
+            document.createTextNode(token)
+          );
+
           continue;
         }
 
@@ -1041,7 +1780,11 @@ window.CM_CATALOG = {
         mask.className = 'word-mask';
         word.className = 'word-inner';
 
-        word.style.setProperty('--word-index', index++);
+        word.style.setProperty(
+          '--word-index',
+          index++
+        );
+
         word.textContent = token;
 
         mask.append(word);
@@ -1062,7 +1805,10 @@ window.CM_CATALOG = {
     });
   };
 
-  if ('IntersectionObserver' in window && !motionQuery.matches) {
+  if (
+    'IntersectionObserver' in window &&
+    !motionQuery.matches
+  ) {
     $$('.text-reveal').forEach(splitTitle);
 
     observer = new IntersectionObserver(entries => {
@@ -1077,7 +1823,9 @@ window.CM_CATALOG = {
       rootMargin: '0px 0px 20px 0px'
     });
 
-    document.documentElement.classList.add('motion-ready');
+    document.documentElement.classList.add(
+      'motion-ready'
+    );
 
     observeAll();
   }
@@ -1111,16 +1859,28 @@ window.CM_CATALOG = {
     const fragment = location.hash.slice(1);
     const mark = fragment.indexOf('?');
 
-    const name = mark < 0 ? fragment : fragment.slice(0, mark);
+    const name = mark < 0
+      ? fragment
+      : fragment.slice(0, mark);
 
     const params = new URLSearchParams(
-      mark < 0 ? '' : fragment.slice(mark + 1)
+      mark < 0
+        ? ''
+        : fragment.slice(mark + 1)
     );
 
-    const legacy = new URLSearchParams(location.search);
+    const legacy = new URLSearchParams(
+      location.search
+    );
 
-    if (!params.has('interesse') && legacy.has('interesse')) {
-      params.set('interesse', legacy.get('interesse'));
+    if (
+      !params.has('interesse') &&
+      legacy.has('interesse')
+    ) {
+      params.set(
+        'interesse',
+        legacy.get('interesse')
+      );
     }
 
     if (name === 'colecoes') {
@@ -1146,13 +1906,14 @@ window.CM_CATALOG = {
     };
   }
 
-  // A query string (?utm_...) é preservada para as campanhas de marketing.
   function writeHash(hash, replace = false) {
     const url = new URL(location.href);
 
     url.hash = hash;
 
-    history[replace ? 'replaceState' : 'pushState']({}, '', url);
+    history[
+      replace ? 'replaceState' : 'pushState'
+    ]({}, '', url);
   }
 
   function goTo(hash, options = {}) {
@@ -1185,7 +1946,6 @@ window.CM_CATALOG = {
     return catalog[category].models[modelIndex];
   }
 
-  // Trocar foto ou aba não deve empilhar entradas no histórico (botão "voltar")
   function saveSelection() {
     const params = new URLSearchParams({
       ambiente: category,
@@ -1200,11 +1960,16 @@ window.CM_CATALOG = {
   function displayImage(animate = true) {
     const model = currentModel();
 
-    const filename = model.image || `${model.prefix}-${imageIndex + 1}.jpg`;
+    const filename =
+      model.image ||
+      `${model.prefix}-${imageIndex + 1}.jpg`;
+
     const target = 'assets/images/' + filename;
     const request = ++imageRequest;
 
-    const alt = `${catalog[category].name} — ${model.name}, imagem ${imageIndex + 1} de ${model.count}`;
+    const alt =
+      `${catalog[category].name} — ${model.name}, ` +
+      `imagem ${imageIndex + 1} de ${model.count}`;
 
     const preload = new Image();
 
@@ -1214,7 +1979,10 @@ window.CM_CATALOG = {
       image.src = target;
       image.alt = alt;
 
-      frame.classList.toggle('is-portrait', Boolean(model.image));
+      frame.classList.toggle(
+        'is-portrait',
+        Boolean(model.image)
+      );
 
       if (animate) {
         frame.classList.remove('changing');
@@ -1233,7 +2001,10 @@ window.CM_CATALOG = {
     preload.src = target;
 
     $$('.gallery-dots button').forEach((button, index) => {
-      button.setAttribute('aria-pressed', String(index === imageIndex));
+      button.setAttribute(
+        'aria-pressed',
+        String(index === imageIndex)
+      );
     });
 
     $('#gallery-status').textContent =
@@ -1248,7 +2019,10 @@ window.CM_CATALOG = {
     const strong = document.createElement('strong');
     strong.textContent = 'Ideal para: ';
 
-    ideal.replaceChildren(strong, document.createTextNode(model.ideal));
+    ideal.replaceChildren(
+      strong,
+      document.createTextNode(model.ideal)
+    );
 
     tags.replaceChildren(
       ...model.tags.map(text => {
@@ -1259,45 +2033,58 @@ window.CM_CATALOG = {
     );
 
     $$('#model-tabs button').forEach((button, index) => {
-      button.setAttribute('aria-selected', String(index === modelIndex));
+      button.setAttribute(
+        'aria-selected',
+        String(index === modelIndex)
+      );
+
       button.tabIndex = index === modelIndex ? 0 : -1;
     });
 
-    panel.setAttribute('aria-labelledby', 'model-' + model.id);
+    panel.setAttribute(
+      'aria-labelledby',
+      'model-' + model.id
+    );
 
     dots.replaceChildren(
-      ...Array.from({ length: model.count }, (_, index) => {
-        const button = document.createElement('button');
+      ...Array.from(
+        { length: model.count },
+        (_, index) => {
+          const button = document.createElement('button');
 
-        button.type = 'button';
+          button.type = 'button';
 
-        button.setAttribute(
-          'aria-label',
-          `Ver imagem ${index + 1} de ${model.name}`
-        );
+          button.setAttribute(
+            'aria-label',
+            `Ver imagem ${index + 1} de ${model.name}`
+          );
 
-        button.setAttribute(
-          'aria-pressed',
-          String(index === imageIndex)
-        );
+          button.setAttribute(
+            'aria-pressed',
+            String(index === imageIndex)
+          );
 
-        button.addEventListener('click', () => {
-          imageIndex = index;
-          displayImage();
-          saveSelection();
-        });
+          button.addEventListener('click', () => {
+            imageIndex = index;
+            displayImage();
+            saveSelection();
+          });
 
-        return button;
-      })
+          return button;
+        }
+      )
     );
 
     $$('.gallery-prev,.gallery-next').forEach(button => {
       button.hidden = model.count === 1;
     });
 
-    const interest = `${catalog[category].name} — ${model.name}`;
+    const interest =
+      `${catalog[category].name} — ${model.name}`;
 
-    modelCTA.href = '#contato?interesse=' + encodeURIComponent(interest);
+    modelCTA.href =
+      '#contato?interesse=' +
+      encodeURIComponent(interest);
 
     displayImage(animate);
   }
@@ -1313,11 +2100,16 @@ window.CM_CATALOG = {
 
     modelIndex = Math.max(
       0,
-      collection.models.findIndex(model => model.id === params.get('modelo'))
+      collection.models.findIndex(
+        model => model.id === params.get('modelo')
+      )
     );
 
     imageIndex = Math.min(
-      Math.max(0, (parseInt(params.get('foto'), 10) || 1) - 1),
+      Math.max(
+        0,
+        (parseInt(params.get('foto'), 10) || 1) - 1
+      ),
       currentModel().count - 1
     );
 
@@ -1340,9 +2132,14 @@ window.CM_CATALOG = {
 
         button.id = 'model-' + model.id;
         button.type = 'button';
+
         button.setAttribute('role', 'tab');
         button.textContent = model.name;
-        button.setAttribute('aria-controls', 'model-panel');
+
+        button.setAttribute(
+          'aria-controls',
+          'model-panel'
+        );
 
         button.addEventListener('click', () => {
           if (modelIndex === index) return;
@@ -1362,7 +2159,16 @@ window.CM_CATALOG = {
   }
 
   tabs.addEventListener('keydown', event => {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    if (
+      ![
+        'ArrowLeft',
+        'ArrowRight',
+        'Home',
+        'End'
+      ].includes(event.key)
+    ) {
+      return;
+    }
 
     event.preventDefault();
 
@@ -1372,7 +2178,11 @@ window.CM_CATALOG = {
       ? 0
       : event.key === 'End'
         ? count - 1
-        : (modelIndex + (event.key === 'ArrowRight' ? 1 : -1) + count) % count;
+        : (
+            modelIndex +
+            (event.key === 'ArrowRight' ? 1 : -1) +
+            count
+          ) % count;
 
     imageIndex = 0;
 
@@ -1383,15 +2193,25 @@ window.CM_CATALOG = {
   });
 
   function stepImage(step) {
-    imageIndex =
-      (imageIndex + step + currentModel().count) % currentModel().count;
+    imageIndex = (
+      imageIndex +
+      step +
+      currentModel().count
+    ) % currentModel().count;
 
     displayImage();
     saveSelection();
   }
 
-  $('.gallery-prev').addEventListener('click', () => stepImage(-1));
-  $('.gallery-next').addEventListener('click', () => stepImage(1));
+  $('.gallery-prev').addEventListener(
+    'click',
+    () => stepImage(-1)
+  );
+
+  $('.gallery-next').addEventListener(
+    'click',
+    () => stepImage(1)
+  );
 
   panel.addEventListener('keydown', event => {
     if (event.target !== panel) return;
@@ -1416,7 +2236,8 @@ window.CM_CATALOG = {
   frame.addEventListener('touchend', event => {
     if (touchX == null) return;
 
-    const distance = event.changedTouches[0].clientX - touchX;
+    const distance =
+      event.changedTouches[0].clientX - touchX;
 
     if (Math.abs(distance) > 45) {
       stepImage(distance < 0 ? 1 : -1);
@@ -1429,35 +2250,50 @@ window.CM_CATALOG = {
   const form = $('#lead-form');
   const interestInput = $('#interesse');
 
-  // O formulário só aparece (e só funciona) com JavaScript ativo.
   form.hidden = false;
+
   const formShownAt = Date.now();
 
-  // Só aceita como "interesse" valores que existem no catálogo (ignora texto arbitrário vindo da URL)
   const allowedInterests = new Set(
     Object.values(catalog).flatMap(entry =>
-      entry.models.map(model => `${entry.name} — ${model.name}`)
+      entry.models.map(
+        model => `${entry.name} — ${model.name}`
+      )
     )
   );
 
   function applyInterest(params) {
     const interest = params.get('interesse');
 
-    if (interest && allowedInterests.has(interest)) {
+    if (
+      interest &&
+      allowedInterests.has(interest)
+    ) {
       $('#interest-field').hidden = false;
       interestInput.value = interest;
     }
   }
 
   $('#telefone').addEventListener('input', event => {
-    const digits = event.target.value.replace(/\D/g, '').slice(0, 11);
+    const digits = event.target.value
+      .replace(/\D/g, '')
+      .slice(0, 11);
 
     event.target.value = digits.length > 10
-      ? digits.replace(/^(\d{2})(\d{5})(\d{0,4}).*$/, '($1) $2-$3')
+      ? digits.replace(
+          /^(\d{2})(\d{5})(\d{0,4}).*$/,
+          '($1) $2-$3'
+        )
       : digits.length > 6
-        ? digits.replace(/^(\d{2})(\d{4})(\d{0,4}).*$/, '($1) $2-$3')
+        ? digits.replace(
+            /^(\d{2})(\d{4})(\d{0,4}).*$/,
+            '($1) $2-$3'
+          )
         : digits.length > 2
-          ? digits.replace(/^(\d{2})(.*)$/, '($1) $2')
+          ? digits.replace(
+              /^(\d{2})(.*)$/,
+              '($1) $2'
+            )
           : digits;
   });
 
@@ -1468,50 +2304,75 @@ window.CM_CATALOG = {
 
     const status = $('.form-status');
     const button = $('button[type=submit]', form);
-    const data = Object.fromEntries(new FormData(form));
 
-    // Anti-robô 1: campo-armadilha preenchido → finge sucesso e descarta
+    const data = Object.fromEntries(
+      new FormData(form)
+    );
+
+    // Campo-armadilha contra robôs.
     if (data.website) {
-      status.textContent = 'Recebemos seu contato. Obrigado pelo interesse!';
+      status.textContent =
+        'Recebemos seu contato. Obrigado pelo interesse!';
+
       form.reset();
       return;
     }
 
-    // Anti-robô 2: envio rápido demais (menos de 3s depois de abrir a página)
+    // Proteção contra envio automático imediato.
     if (Date.now() - formShownAt < 3000) {
-      status.textContent = 'Aguarde um instante e tente novamente.';
+      status.textContent =
+        'Aguarde um instante e tente novamente.';
+
       return;
     }
 
-    if (data.telefone.replace(/\D/g, '').length < 10) {
-      status.textContent = 'Confira o telefone com DDD antes de continuar.';
+    if (
+      data.telefone.replace(/\D/g, '').length < 10
+    ) {
+      status.textContent =
+        'Confira o telefone com DDD antes de continuar.';
+
       $('#telefone').focus();
       return;
     }
 
-    // Parâmetros de campanha (utm_source etc.) para a equipe de marketing
     const utm = {};
 
-    for (const [key, value] of new URLSearchParams(location.search)) {
-      if (/^utm_[a-z_]{1,20}$/.test(key)) utm[key] = value.slice(0, 100);
+    for (
+      const [key, value]
+      of new URLSearchParams(location.search)
+    ) {
+      if (/^utm_[a-z_]{1,20}$/.test(key)) {
+        utm[key] = value.slice(0, 100);
+      }
     }
 
-    // Registro do consentimento (LGPD): texto exibido, data/hora e versão da política
     const payload = {
       nome: data.nome.trim(),
       email: data.email.trim(),
       telefone: data.telefone,
-      interesse: allowedInterests.has(data.interesse) ? data.interesse : '',
+
+      interesse: allowedInterests.has(data.interesse)
+        ? data.interesse
+        : '',
+
       origem: 'Site CM Studio',
       pagina: location.origin + location.pathname,
       consentimento: true,
-      consentimento_texto: $('.consent span').textContent.replace(/\s+/g, ' ').trim(),
+
+      consentimento_texto: $('.consent span')
+        .textContent
+        .replace(/\s+/g, ' ')
+        .trim(),
+
       consentimento_em: new Date().toISOString(),
       politica_versao: config.privacyVersion || '',
       ...utm
     };
 
-    const whatsapp = String(config.whatsapp || '').replace(/\D/g, '');
+    const whatsapp = String(
+      config.whatsapp || ''
+    ).replace(/\D/g, '');
 
     if (config.leadEndpoint) {
       let endpoint;
@@ -1519,10 +2380,13 @@ window.CM_CATALOG = {
       try {
         endpoint = new URL(config.leadEndpoint);
 
-        if (endpoint.protocol !== 'https:') throw new Error();
+        if (endpoint.protocol !== 'https:') {
+          throw new Error();
+        }
       } catch {
         status.textContent =
           'O envio está temporariamente indisponível. Seus dados não foram enviados.';
+
         return;
       }
 
@@ -1530,21 +2394,29 @@ window.CM_CATALOG = {
       status.textContent = 'Enviando…';
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
+
+      const timer = setTimeout(
+        () => controller.abort(),
+        15000
+      );
 
       try {
         const response = await fetch(endpoint.href, {
           method: 'POST',
+
           headers: {
             'Content-Type': 'application/json'
           },
+
           body: JSON.stringify(payload),
           signal: controller.signal
         });
 
         if (!response.ok) throw new Error();
 
-        status.textContent = 'Recebemos seu contato. Obrigado pelo interesse!';
+        status.textContent =
+          'Recebemos seu contato. Obrigado pelo interesse!';
+
         form.reset();
       } catch {
         status.textContent =
@@ -1559,7 +2431,11 @@ window.CM_CATALOG = {
         `Nome: ${payload.nome}\n` +
         `E-mail: ${payload.email}\n` +
         `Telefone: ${payload.telefone}` +
-        (payload.interesse ? '\nInteresse: ' + payload.interesse : '');
+        (
+          payload.interesse
+            ? '\nInteresse: ' + payload.interesse
+            : ''
+        );
 
       location.href =
         `https://wa.me/${whatsapp}?text=${encodeURIComponent(text)}`;
@@ -1572,9 +2448,12 @@ window.CM_CATALOG = {
     }
   });
 
-  /* MODAIS (fechar no X, clicando fora ou com Esc) */
+  /* MODAIS */
   function bindDialog(dialog, onClose) {
-    $('.dialog-close', dialog).addEventListener('click', () => dialog.close());
+    $('.dialog-close', dialog).addEventListener(
+      'click',
+      () => dialog.close()
+    );
 
     dialog.addEventListener('click', event => {
       if (event.target !== dialog) return;
@@ -1598,21 +2477,29 @@ window.CM_CATALOG = {
   const dialog = $('#video-dialog');
   const videoHolder = $('#video-content');
 
-  bindDialog(dialog, () => videoHolder.replaceChildren());
+  bindDialog(
+    dialog,
+    () => videoHolder.replaceChildren()
+  );
 
   $$('[data-video]').forEach(button => {
     button.addEventListener('click', () => {
-      $('#video-title').textContent = button.dataset.title;
+      $('#video-title').textContent =
+        button.dataset.title;
+
       videoHolder.replaceChildren();
 
-      const raw = config.videos?.[button.dataset.video];
+      const raw =
+        config.videos?.[button.dataset.video];
 
       let url;
 
       try {
         url = raw ? new URL(raw) : null;
 
-        if (url?.protocol !== 'https:') url = null;
+        if (url?.protocol !== 'https:') {
+          url = null;
+        }
       } catch {
         url = null;
       }
@@ -1623,12 +2510,17 @@ window.CM_CATALOG = {
         let id;
 
         if (
-          ['youtube.com', 'www.youtube.com', 'm.youtube.com']
-            .includes(url.hostname)
+          [
+            'youtube.com',
+            'www.youtube.com',
+            'm.youtube.com'
+          ].includes(url.hostname)
         ) {
           id =
             url.searchParams.get('v') ||
-            url.pathname.match(/^\/(?:embed|shorts)\/([\w-]+)/)?.[1];
+            url.pathname.match(
+              /^\/(?:embed|shorts)\/([\w-]+)/
+            )?.[1];
         } else if (url.hostname === 'youtu.be') {
           id = url.pathname.slice(1);
         }
@@ -1639,7 +2531,10 @@ window.CM_CATALOG = {
         }
 
         if (
-          ['vimeo.com', 'www.vimeo.com'].includes(url.hostname) &&
+          [
+            'vimeo.com',
+            'www.vimeo.com'
+          ].includes(url.hostname) &&
           /^\/\d+$/.test(url.pathname)
         ) {
           embed =
@@ -1652,17 +2547,25 @@ window.CM_CATALOG = {
 
         iframe.src = embed;
         iframe.title = button.dataset.title;
-        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+
+        iframe.allow =
+          'autoplay; fullscreen; picture-in-picture';
+
         iframe.allowFullscreen = true;
-        iframe.referrerPolicy = 'strict-origin-when-cross-origin';
-        // Isola o player: só recebe as permissões mínimas para funcionar
+
+        iframe.referrerPolicy =
+          'strict-origin-when-cross-origin';
+
         iframe.setAttribute(
           'sandbox',
           'allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox'
         );
 
         videoHolder.append(iframe);
-      } else if (url && /\.mp4$/i.test(url.pathname)) {
+      } else if (
+        url &&
+        /\.mp4$/i.test(url.pathname)
+      ) {
         const video = document.createElement('video');
 
         video.src = url.href;
@@ -1676,6 +2579,7 @@ window.CM_CATALOG = {
         cover.loading = 'eager';
 
         const text = document.createElement('p');
+
         text.textContent =
           'O vídeo deste projeto será disponibilizado em breve.';
 
@@ -1704,16 +2608,27 @@ window.CM_CATALOG = {
   bindDialog(privacyDialog, () => {});
 
   $$('[data-open-privacy]').forEach(button => {
-    button.addEventListener('click', () => privacyDialog.showModal());
+    button.addEventListener(
+      'click',
+      () => privacyDialog.showModal()
+    );
   });
 
   /* APLICAÇÃO DAS ROTAS */
-  function applyRoute({ scroll = false, focus = false } = {}) {
+  function applyRoute({
+    scroll = false,
+    focus = false
+  } = {}) {
     const route = readRoute();
-    const changedView = route.view !== activeView;
 
-    homeView.hidden = route.view !== 'home';
-    collectionView.hidden = route.view !== 'colecoes';
+    const changedView =
+      route.view !== activeView;
+
+    homeView.hidden =
+      route.view !== 'home';
+
+    collectionView.hidden =
+      route.view !== 'colecoes';
 
     activeView = route.view;
 
@@ -1737,7 +2652,11 @@ window.CM_CATALOG = {
     }
 
     if (changedView) {
-      revealView(activeView === 'home' ? homeView : collectionView);
+      revealView(
+        activeView === 'home'
+          ? homeView
+          : collectionView
+      );
     }
 
     if (scroll) {
@@ -1747,7 +2666,10 @@ window.CM_CATALOG = {
 
       if (section) {
         section.scrollIntoView({
-          behavior: motionQuery.matches ? 'auto' : 'smooth',
+          behavior: motionQuery.matches
+            ? 'auto'
+            : 'smooth',
+
           block: 'start'
         });
       } else {
@@ -1759,27 +2681,36 @@ window.CM_CATALOG = {
     }
 
     if (focus) {
-      const heading = route.section && route.section !== 'conteudo'
-        ? document.querySelector(`#${CSS.escape(route.section)} h2`)
-        : null;
+      const heading =
+        route.section &&
+        route.section !== 'conteudo'
+          ? document.querySelector(
+              `#${CSS.escape(route.section)} h2`
+            )
+          : null;
 
       const target = route.section === 'conteudo'
         ? $('#conteudo')
         : heading || (
-          activeView === 'colecoes'
-            ? title
-            : $('#hero-title')
-        );
+            activeView === 'colecoes'
+              ? title
+              : $('#hero-title')
+          );
 
       target.setAttribute('tabindex', '-1');
-      target.focus({ preventScroll: true });
+
+      target.focus({
+        preventScroll: true
+      });
     }
 
     lastRoute = location.href;
   }
 
   document.addEventListener('click', event => {
-    const link = event.target.closest('a[href^="#"]');
+    const link = event.target.closest(
+      'a[href^="#"]'
+    );
 
     if (
       !link ||
@@ -1796,7 +2727,9 @@ window.CM_CATALOG = {
 
     event.preventDefault();
 
-    goTo(link.getAttribute('href').slice(1));
+    goTo(
+      link.getAttribute('href').slice(1)
+    );
   });
 
   function restoreRoute() {
@@ -1808,14 +2741,23 @@ window.CM_CATALOG = {
     }
   }
 
-  window.addEventListener('popstate', restoreRoute);
-  window.addEventListener('hashchange', restoreRoute);
+  window.addEventListener(
+    'popstate',
+    restoreRoute
+  );
+
+  window.addEventListener(
+    'hashchange',
+    restoreRoute
+  );
 
   applyRoute();
 
   if (readRoute().section) {
     requestAnimationFrame(() => {
-      applyRoute({ scroll: true });
+      applyRoute({
+        scroll: true
+      });
     });
   }
 })();
