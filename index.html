@@ -113,7 +113,7 @@ section[id]{scroll-margin-top:100px}
   }
   .intro.is-leaving{
     transform:translateY(-102%);
-    transition:transform 1.2s cubic-bezier(.77,0,.18,1);
+    transition:transform .6s cubic-bezier(.77,0,.18,1);
   }
   .intro-video{
     position:absolute;
@@ -123,24 +123,6 @@ section[id]{scroll-margin-top:100px}
     object-fit:cover;
     pointer-events:none;
   }
-  .intro-skip{
-    position:absolute;
-    right:36px;
-    bottom:30px;
-    min-height:40px;
-    padding:8px 20px;
-    border:1px solid #ffffff99;
-    border-radius:50px;
-    background:#163d3d66;
-    color:#fff;
-    font-size:.85rem;
-    font-weight:600;
-    letter-spacing:.04em;
-    -webkit-backdrop-filter:blur(8px);
-    backdrop-filter:blur(8px);
-    transition:background .25s;
-  }
-  .intro-skip:hover{background:#163d3dcc}
 }
 
 /* CABEÇALHO FIXO COM EFEITO DE VIDRO */
@@ -532,7 +514,6 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
     <video id="intro-video" class="intro-video" muted autoplay playsinline preload="auto" disablepictureinpicture disableremoteplayback aria-hidden="true" poster="assets/images/loading-poster.jpg">
       <source src="assets/images/loading.mp4" type="video/mp4">
     </video>
-    <button type="button" class="intro-skip" id="intro-skip" aria-label="Pular animação de abertura">Pular</button>
   </div>
 
   <!-- CABEÇALHO -->
@@ -1075,7 +1056,6 @@ window.CM_CATALOG = {
 
   function runIntro() {
     const video = $('#intro-video');
-    const skip = $('#intro-skip');
 
     let leaving = false;
     let played = false;
@@ -1117,12 +1097,12 @@ window.CM_CATALOG = {
         return;
       }
 
-      // Efeito cortina: o vídeo sobe e revela o site
+      // Ao terminar o vídeo, a cortina sobe automaticamente e revela o site
       intro.classList.add('is-leaving');
       setPageInert(false);
       startReveal();
 
-      setTimeout(finish, 1300);
+      setTimeout(finish, 650);
     };
 
     video.addEventListener('playing', () => {
@@ -1135,12 +1115,6 @@ window.CM_CATALOG = {
 
     const source = $('source', video);
     if (source) source.addEventListener('error', leave, { once: true });
-
-    skip.addEventListener('click', leave);
-
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape') leave();
-    });
 
     // Se o vídeo não começar em 3,5s (ou travar), segue para o site
     startTimer = setTimeout(leave, 3500);
