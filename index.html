@@ -9,8 +9,8 @@
        ex.: connect-src 'self' https://formspree.io; -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; media-src 'self' https:; connect-src 'self'; base-uri 'self'; form-action 'none'; object-src 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
-  <!-- REMOVER ESTA LINHA QUANDO O SITE FOR PARA PRODUÇÃO (impede indexação do protótipo) -->
-  <meta name="robots" content="noindex, nofollow">
+  <!-- Produção: permite rastreamento e indexação pelos buscadores. -->
+  <meta name="robots" content="index, follow, max-image-preview:large">
 
   <title>CM Studio | Móveis planejados em todos os detalhes</title>
   <meta name="description" content="Explore cozinhas, salas, dormitórios e home offices planejados pela CM Studio. Do conceito à execução, um ambiente pensado para você.">
@@ -19,45 +19,12 @@
   <link rel="icon" href="assets/images/logo.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Raleway:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- ABERTURA EM VÍDEO: configuração e detecção.
-       Roda antes da primeira pintura para a página não "piscar". Só ativa no desktop (1025px ou mais). -->
-  <script>
-window.CM_INTRO = {
-  enabled: true,         // false desliga a abertura
-  oncePerSession: false, // true = toca só 1x por sessão (RECOMENDADO em produção; deixe false para testar)
-  skipOnDeepLink: true   // não toca se o link já abrir numa seção (ex.: site.com/#contato)
-};
-(function () {
-  var d = document.documentElement, c = window.CM_INTRO;
-  try {
-    var ok = c.enabled &&
-      matchMedia('(min-width:1025px)').matches &&
-      !matchMedia('(prefers-reduced-motion:reduce)').matches;
-
-    var net = navigator.connection;
-    if (net && (net.saveData || /(^|-)2g$/.test(net.effectiveType || ''))) ok = false;
-
-    if (ok && c.skipOnDeepLink && location.hash && location.hash !== '#home') ok = false;
-
-    if (ok && c.oncePerSession) {
-      try { if (sessionStorage.getItem('cm_intro_seen')) ok = false; } catch (e) {}
-    }
-
-    if (ok) {
-      d.classList.add('has-intro');
-
-      // Trava de segurança: se o script principal falhar, a abertura some sozinha em 12s.
-      setTimeout(function () {
-        d.classList.remove('has-intro');
-        var el = document.getElementById('intro');
-        if (el) el.remove();
-      }, 12000);
-    }
-  } catch (e) {}
-})();
-  </script>
+  <!-- A imagem da primeira tela tem prioridade; somente a versão da tela atual é antecipada. -->
+  <link rel="preload" as="image" href="assets/images/hero-mobile.png" media="(max-width:600px)" fetchpriority="high">
+  <link rel="preload" as="image" href="assets/images/hero-desktop.png" media="(min-width:600.01px)" fetchpriority="high">
+  <!-- Fontes não bloqueiam a página; as fontes originais são aplicadas assim que disponíveis. -->
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&amp;family=Raleway:wght@400;500;600;700&amp;display=swap" rel="stylesheet" media="print" onload="this.onload=null;this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&amp;family=Raleway:wght@400;500;600;700&amp;display=swap" rel="stylesheet"></noscript>
 
   <!-- ESTILOS DO SITE -->
   <style>
@@ -97,33 +64,6 @@ section[id]{scroll-margin-top:100px}
 .skip-link{position:fixed;top:-100px;left:20px;padding:15px;background:white;color:var(--teal);z-index:100}
 .skip-link:focus{top:12px}
 .link-button{border:0;background:none;padding:0;font:inherit;color:inherit;text-decoration:underline;text-underline-offset:3px}
-
-/* ABERTURA EM VÍDEO (SOMENTE DESKTOP) */
-.intro{display:none}
-@media(min-width:1025px){
-  html.has-intro{overflow:hidden}
-  html.has-intro .intro{
-    display:block;
-    position:fixed;
-    inset:0;
-    z-index:1000;
-    background:#f4f3f0;
-    box-shadow:0 40px 80px -20px rgba(10,35,36,.45);
-    will-change:transform;
-  }
-  .intro.is-leaving{
-    transform:translateY(-102%);
-    transition:transform .6s cubic-bezier(.77,0,.18,1);
-  }
-  .intro-video{
-    position:absolute;
-    inset:0;
-    width:100%;
-    height:100%;
-    object-fit:cover;
-    pointer-events:none;
-  }
-}
 
 /* CABEÇALHO FIXO COM EFEITO DE VIDRO */
 .site-header{
@@ -509,12 +449,7 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
 </head>
 
 <body>
-  <!-- ABERTURA EM VÍDEO (aparece só no desktop; no celular/tablet nunca é exibida) -->
-  <div id="intro" class="intro">
-    <video id="intro-video" class="intro-video" muted autoplay playsinline preload="auto" disablepictureinpicture disableremoteplayback aria-hidden="true" poster="assets/images/loading-poster.jpg">
-      <source src="assets/images/loading.mp4" type="video/mp4">
-    </video>
-  </div>
+  <!-- Entrada direta: sem vídeo ou temporizador bloqueando o conteúdo. -->
 
   <!-- CABEÇALHO -->
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -551,25 +486,26 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
             height="727"
             alt="Sala com sofá claro, detalhes verdes e marcenaria iluminada"
             fetchpriority="high"
+            loading="eager"
           >
         </picture>
 
         <div class="hero-copy">
-          <p class="eyebrow reveal" style="--delay:40ms">Móveis de alto padrão</p>
+          <p class="eyebrow">Móveis de alto padrão</p>
 
-          <h1 id="hero-title" tabindex="-1" class="text-reveal">
+          <h1 id="hero-title" tabindex="-1">
             <span class="light-heading">Exclusividade</span><br>
             em todos os detalhes
           </h1>
 
-          <p class="hero-description reveal" style="--delay:180ms">
+          <p class="hero-description">
             Projetos que valorizam a
             <strong>arquitetura, a escolha dos<br class="desktop-break">
             materiais e personalidade</strong>
             de cada ambiente.
           </p>
 
-          <div class="hero-actions reveal" style="--delay:290ms">
+          <div class="hero-actions">
             <a class="button" href="#colecoes">Conheça nossos projetos</a>
             <a class="button button-light" href="#contato">Fale com nossa equipe</a>
           </div>
@@ -585,25 +521,25 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
 
         <div class="collection-grid cascade">
           <a class="collection-card reveal scale-reveal" style="--delay:0ms" href="#colecoes?ambiente=cozinhas">
-            <img src="assets/images/categoria-1.png" width="265" height="331" loading="lazy" alt="Cozinha planejada com ilha e bancada em pedra">
+            <img src="assets/images/categoria-1.png" width="265" height="331" loading="lazy" decoding="async" alt="Cozinha planejada com ilha e bancada em pedra">
             <h3>Cozinhas<br>Planejadas</h3>
             <span>Veja modelos</span>
           </a>
 
           <a class="collection-card reveal scale-reveal" style="--delay:130ms" href="#colecoes?ambiente=salas">
-            <img src="assets/images/categoria-2.png" width="280" height="332" loading="lazy" alt="Sala de estar com painel de TV iluminado">
+            <img src="assets/images/categoria-2.png" width="280" height="332" loading="lazy" decoding="async" alt="Sala de estar com painel de TV iluminado">
             <h3>Salas e Ambientes<br>de Estar</h3>
             <span>Veja modelos</span>
           </a>
 
           <a class="collection-card reveal scale-reveal" style="--delay:260ms" href="#colecoes?ambiente=dormitorios">
-            <img src="assets/images/categoria-3.png" width="281" height="331" loading="lazy" alt="Dormitório com closet e iluminação integrada">
+            <img src="assets/images/categoria-3.png" width="281" height="331" loading="lazy" decoding="async" alt="Dormitório com closet e iluminação integrada">
             <h3>Dormitórios<br>e Closets</h3>
             <span>Veja modelos</span>
           </a>
 
           <a class="collection-card reveal scale-reveal" style="--delay:390ms" href="#colecoes?ambiente=office">
-            <img src="assets/images/categoria-4.png" width="281" height="332" loading="lazy" alt="Home office com estantes e mesa sob medida">
+            <img src="assets/images/categoria-4.png" width="281" height="332" loading="lazy" decoding="async" alt="Home office com estantes e mesa sob medida">
             <h3>Home Office</h3>
             <span>Veja modelos</span>
           </a>
@@ -682,17 +618,17 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
       <section class="video-section" aria-label="Tours de projetos">
         <div class="video-track cascade">
           <button type="button" class="video-card reveal scale-reveal" data-video="apartamento" data-title="Um apartamento inesquecível">
-            <img src="assets/images/video-apartamento.jpg" width="1672" height="941" alt="Tour completo — Um apartamento inesquecível" loading="lazy">
+            <img src="assets/images/video-apartamento.jpg" width="1672" height="941" alt="Tour completo — Um apartamento inesquecível" loading="lazy" decoding="async">
             <span class="sr-only">Abrir tour: Um apartamento inesquecível</span>
           </button>
 
           <button type="button" class="video-card reveal scale-reveal" style="--delay:130ms" data-video="comercial" data-title="Um espaço comercial de alto padrão">
-            <img src="assets/images/video-comercial.jpg" width="1600" height="900" alt="Tour completo — Um espaço comercial de alto padrão" loading="lazy">
+            <img src="assets/images/video-comercial.jpg" width="1600" height="900" alt="Tour completo — Um espaço comercial de alto padrão" loading="lazy" decoding="async">
             <span class="sr-only">Abrir tour: Um espaço comercial de alto padrão</span>
           </button>
 
           <button type="button" class="video-card reveal scale-reveal" style="--delay:260ms" data-video="cozinha" data-title="Uma cozinha sob medida">
-            <img src="assets/images/video-cozinha.jpg" width="1600" height="900" alt="Tour completo — Uma cozinha sob medida" loading="lazy">
+            <img src="assets/images/video-cozinha.jpg" width="1600" height="900" alt="Tour completo — Uma cozinha sob medida" loading="lazy" decoding="async">
             <span class="sr-only">Abrir tour: Uma cozinha sob medida</span>
           </button>
         </div>
@@ -826,7 +762,7 @@ details[open] .detail-answer{animation:answer-in .3s var(--ease)}
 
           <div id="model-panel" role="tabpanel" tabindex="0">
             <div class="gallery-frame">
-              <img id="model-image" src="assets/images/cozinha-linear-1.jpg" width="1672" height="941" alt="Modelo de cozinha linear">
+              <img id="model-image" src="assets/images/cozinha-linear-1.jpg" width="1672" height="941" loading="lazy" decoding="async" alt="Modelo de cozinha linear">
 
               <button class="gallery-prev" type="button" aria-label="Imagem anterior">‹</button>
               <button class="gallery-next" type="button" aria-label="Próxima imagem">›</button>
@@ -1037,93 +973,6 @@ window.CM_CATALOG = {
     element.textContent = new Date().getFullYear();
   });
 
-  /* ABERTURA EM VÍDEO (SOMENTE DESKTOP) */
-  const root = document.documentElement;
-  const intro = $('#intro');
-  const introOptions = window.CM_INTRO || {};
-
-  // A classe has-intro só existe se o <head> decidiu que a abertura deve tocar.
-  let introPending = Boolean(intro) && root.classList.contains('has-intro');
-
-  // Quando a cortina começa a subir, as animações do site são liberadas.
-  let startReveal = () => {};
-
-  function setPageInert(state) {
-    $$('.site-header, main, .site-footer').forEach(element => {
-      element.inert = state;
-    });
-  }
-
-  function runIntro() {
-    const video = $('#intro-video');
-
-    let leaving = false;
-    let played = false;
-    let startTimer;
-    let failsafeTimer;
-
-    setPageInert(true);
-
-    const finish = () => {
-      clearTimeout(startTimer);
-      clearTimeout(failsafeTimer);
-
-      intro.remove();
-      root.classList.remove('has-intro');
-      setPageInert(false);
-    };
-
-    const leave = () => {
-      if (leaving) return;
-
-      leaving = true;
-      introPending = false;
-
-      clearTimeout(startTimer);
-      clearTimeout(failsafeTimer);
-
-      try {
-        if (introOptions.oncePerSession) {
-          sessionStorage.setItem('cm_intro_seen', '1');
-        }
-      } catch {}
-
-      video.pause();
-
-      // O vídeo não chegou a tocar: abre o site direto, sem tela em branco nem cortina
-      if (!played) {
-        startReveal();
-        finish();
-        return;
-      }
-
-      // Ao terminar o vídeo, a cortina sobe automaticamente e revela o site
-      intro.classList.add('is-leaving');
-      setPageInert(false);
-      startReveal();
-
-      setTimeout(finish, 650);
-    };
-
-    video.addEventListener('playing', () => {
-      played = true;
-      clearTimeout(startTimer);
-    }, { once: true });
-
-    video.addEventListener('ended', leave, { once: true });
-    video.addEventListener('error', leave, { once: true });
-
-    const source = $('source', video);
-    if (source) source.addEventListener('error', leave, { once: true });
-
-    // Se o vídeo não começar em 3,5s (ou travar), segue para o site
-    startTimer = setTimeout(leave, 3500);
-    failsafeTimer = setTimeout(leave, 9000);
-
-    const attempt = video.play();
-    if (attempt && attempt.catch) attempt.catch(leave);
-  }
-
   /* MENU MOBILE */
   const menuButton = $('.menu-toggle');
   const menu = $('#main-nav');
@@ -1230,15 +1079,8 @@ window.CM_CATALOG = {
 
     document.documentElement.classList.add('motion-ready');
 
-    // Com abertura em vídeo, as animações só começam quando a cortina sobe.
-    if (introPending) {
-      startReveal = observeAll;
-    } else {
-      observeAll();
-    }
+    observeAll();
   }
-
-  if (introPending) runIntro();
 
   function animateTitle(element) {
     if (!observer || motionQuery.matches) return;
@@ -1256,7 +1098,7 @@ window.CM_CATALOG = {
   }
 
   function revealView(view) {
-    if (!observer || motionQuery.matches || introPending) return;
+    if (!observer || motionQuery.matches) return;
 
     $$('.reveal,.text-reveal', view).forEach(element => {
       element.classList.remove('is-visible');
